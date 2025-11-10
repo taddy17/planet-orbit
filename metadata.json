@@ -1,0 +1,5 @@
+{
+  "name": "Planet Orbit Game",
+  "description": "A mobile-first web game where you control a moon's orbit to dodge asteroids. Features real-time leaderboards and player customization powered by Firebase.",
+  "requestFramePermissions": []
+}
