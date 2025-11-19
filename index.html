@@ -1,10 +1,11 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Planet Orbit Game</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -18,6 +19,8 @@
         height: 100vh;
         width: 100vw;
         touch-action: none; /* Disables browser touch gestures like pull-to-refresh */
+        -webkit-tap-highlight-color: transparent; /* Disable tap highlight on iOS */
+        -webkit-font-smoothing: antialiased; /* Improve font rendering */
       }
       #root {
         width: 100%;
@@ -43,6 +46,79 @@
         border-radius: 0.25rem;
         border: 2px solid #fff;
       }
+
+      /* --- Animations --- */
+      @keyframes float-in {
+        0% { transform: translateY(30px) scale(0.8); opacity: 0; }
+        60% { transform: translateY(-10px) scale(1.1); opacity: 1; }
+        80% { transform: translateY(5px) scale(1.05); }
+        100% { transform: translateY(0) scale(1); opacity: 1; }
+      }
+      
+      @keyframes fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      @keyframes slide-up {
+        from { transform: translateY(50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      
+      @keyframes glow-pulse {
+        0%, 100% { text-shadow: 0 0 20px #0ea5e9; }
+        50% { text-shadow: 0 0 35px #0ea5e9, 0 0 10px #93c5fd; }
+      }
+      
+      .animate-float-in {
+        animation: float-in 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+      }
+      
+      .animate-fade-in {
+        animation: fade-in 1s ease-out both;
+      }
+      
+      .animate-slide-up {
+        animation: slide-up 0.8s cubic-bezier(0.19, 1, 0.22, 1) both;
+      }
+      
+      .animate-glow-pulse {
+        animation: glow-pulse 3s infinite ease-in-out;
+      }
+
+      /* --- Orbit Slider --- */
+      .orbit-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 80%;
+        max-width: 400px;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 5px;
+        outline: none;
+        transition: opacity 0.2s;
+        cursor: pointer;
+      }
+
+      .orbit-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        background: #e5e7eb; /* Corresponds to moon color */
+        border-radius: 50%;
+        border: 3px solid #020617; /* Corresponds to background color */
+        box-shadow: 0 0 10px #e5e7eb;
+      }
+
+      .orbit-slider::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        background: #e5e7eb;
+        border-radius: 50%;
+        border: 3px solid #020617;
+        box-shadow: 0 0 10px #e5e7eb;
+      }
     </style>
   <script type="importmap">
 {
@@ -50,7 +126,8 @@
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.5.0/"
+    "firebase/": "https://aistudiocdn.com/firebase@^12.5.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1"
   }
 }
 </script>

@@ -6,7 +6,7 @@ import { Button } from './Button';
 
 interface SettingsModalProps {
   settings: PlayerSettings;
-  onSave: (newSettings: PlayerSettings) => void;
+  onSave: (newSettings: Partial<PlayerSettings>) => void;
   onClose: () => void;
 }
 
@@ -30,23 +30,42 @@ const DifficultyOption: React.FC<{ value: Difficulty; current: Difficulty; onCha
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose }) => {
   const [difficulty, setDifficulty] = useState<Difficulty>(settings.difficulty);
+  const [displayName, setDisplayName] = useState(settings.displayName || '');
 
   const handleSave = () => {
-    onSave({ ...settings, difficulty });
+    onSave({ difficulty, displayName });
   };
 
   return (
     <Modal show={true} onClose={onClose}>
-      <div className="w-full max-w-sm mx-auto">
-        <h1 className="text-3xl sm:text-5xl font-bold mb-6 text-white">Settings</h1>
-        <div className="bg-slate-700 p-6 rounded-lg w-full">
-            <h2 className="text-xl font-semibold mb-4 text-center">Difficulty</h2>
-            <div className="grid grid-cols-3 gap-4">
-                <DifficultyOption value="easy" current={difficulty} onChange={setDifficulty} label="Easy" />
-                <DifficultyOption value="normal" current={difficulty} onChange={setDifficulty} label="Normal" />
-                <DifficultyOption value="hard" current={difficulty} onChange={setDifficulty} label="Hard" />
+      <div className="w-full max-w-sm mx-auto text-left">
+        <h1 className="text-3xl sm:text-5xl font-bold mb-6 text-white text-center">Settings</h1>
+        
+        <div className="bg-slate-700 p-6 rounded-lg w-full flex flex-col gap-6">
+            {/* High Score removed from here */}
+
+            <div>
+                <h2 className="text-xl font-semibold mb-2">Nickname</h2>
+                <input 
+                    type="text" 
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full p-3 rounded bg-slate-800 border border-slate-600 text-white focus:border-sky-500 outline-none"
+                    placeholder="Enter your nickname"
+                    maxLength={15}
+                />
+            </div>
+
+            <div>
+                <h2 className="text-xl font-semibold mb-2 text-center">Difficulty</h2>
+                <div className="grid grid-cols-3 gap-4">
+                    <DifficultyOption value="easy" current={difficulty} onChange={setDifficulty} label="Easy" />
+                    <DifficultyOption value="normal" current={difficulty} onChange={setDifficulty} label="Normal" />
+                    <DifficultyOption value="hard" current={difficulty} onChange={setDifficulty} label="Hard" />
+                </div>
             </div>
         </div>
+
         <div className="flex gap-4 mt-8 justify-center">
           <Button onClick={handleSave} className="w-32">Save</Button>
           <Button onClick={onClose} variant="secondary" className="w-32">Close</Button>

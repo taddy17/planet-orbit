@@ -12,15 +12,10 @@ import {
   doc, 
   getDoc, 
   setDoc, 
-  addDoc, 
-  collection, 
-  query, 
-  onSnapshot, 
-  serverTimestamp,
   Firestore
 } from "firebase/firestore";
 
-import type { PlayerSettings, LeaderboardEntry } from '../types';
+import type { PlayerSettings } from '../types';
 
 declare global {
   interface Window {
@@ -150,7 +145,7 @@ export const loadSettings = async (userId: string): Promise<PlayerSettings | nul
   }
 };
 
-export const saveSettings = async (userId: string, settings: PlayerSettings) => {
+export const saveSettings = async (userId: string, settings: Partial<PlayerSettings>) => {
   try {
     const { db, appId, isAvailable } = await getFirebaseServices();
     if (!isAvailable || !db || !appId || !userId) return;
@@ -159,57 +154,4 @@ export const saveSettings = async (userId: string, settings: PlayerSettings) => 
   } catch (error) {
     console.error("Error saving settings:", error);
   }
-};
-
-export const saveScoreToLeaderboard = async (userId: string, score: number) => {
-  try {
-    const { db, appId, isAvailable } = await getFirebaseServices();
-    if (!isAvailable || !db || !appId || !userId || score <= 0) return;
-    const leaderboardCollection = collection(db, 'artifacts', appId, 'leaderboard');
-    await addDoc(leaderboardCollection, {
-      userId,
-      score,
-      createdAt: serverTimestamp()
-    });
-  } catch (error) {
-    console.error("Error saving score:", error);
-  }
-};
-
-export const listenToLeaderboard = (callback: (scores: LeaderboardEntry[]) => void): (() => void) => {
-  let unsubscribe: Unsubscribe = () => {};
-  
-  (async () => {
-    try {
-      const { db, appId, isAvailable } = await getFirebaseServices();
-      if (!isAvailable || !db || !appId) {
-        callback([]);
-        return;
-      }
-      const leaderboardCollection = collection(db, 'artifacts', appId, 'leaderboard');
-      const q = query(leaderboardCollection);
-
-      unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const scores: LeaderboardEntry[] = [];
-        querySnapshot.forEach((doc) => {
-          scores.push(doc.data() as LeaderboardEntry);
-        });
-        
-        scores.sort((a, b) => b.score - a.score);
-        const top10 = scores.slice(0, 10);
-        callback(top10);
-      }, (error) => {
-        console.error("Error listening to leaderboard:", error);
-        callback([]);
-      });
-
-    } catch (error) {
-      console.error("Firestore service not available for leaderboard listener.", error);
-      callback([]);
-    }
-  })();
-  
-  return () => {
-    unsubscribe();
-  };
 };
