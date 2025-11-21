@@ -8,7 +8,7 @@ import {
   saveSettings as saveSettingsToFirebase, 
 } from './services/firebase';
 import { generatePlayerName } from './services/gemini';
-import { initAudio } from './services/sound';
+import { initAudio, startBackgroundMusic } from './services/sound';
 import type { GameState, PlayerSettings, Difficulty } from './types';
 import { GameCanvas } from './components/GameCanvas';
 import { LoginScreen } from './components/LoginScreen';
@@ -20,7 +20,7 @@ import { CustomizeModal } from './components/CustomizeModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HighScoreModal } from './components/HighScoreModal';
 import { LevelDisplay } from './components/LevelDisplay';
-import { OrbitSlider } from './components/OrbitSlider';
+import { TutorialOverlay } from './components/TutorialOverlay';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>('login');
@@ -32,17 +32,20 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<PlayerSettings>({
     planetColor: '#0ea5e9',
     moonColor: '#e5e7eb',
+    trailColor: '#38bdf8',
+    moonSkin: 'default',
     difficulty: 'normal',
     displayName: 'Guest Pilot',
-    highScore: 0
+    highScore: 0,
+    hasSeenTutorial: false
   });
 
   const [isCustomizeVisible, setCustomizeVisible] = useState(false);
   const [isSettingsVisible, setSettingsVisible] = useState(false);
   const [isHighScoreVisible, setHighScoreVisible] = useState(false);
+  const [isTutorialActive, setIsTutorialActive] = useState(false);
   
-  const [orbitRadius, setOrbitRadius] = useState(150);
-  const [orbitBounds, setOrbitBounds] = useState({ min: 50, max: 200 });
+  const [isPressing, setIsPressing] = useState(false);
 
   useEffect(() => {
     let authUnsubscribe: () => void = () => {};
@@ -66,15 +69,27 @@ const App: React.FC = () => {
              userSettings = {
               planetColor: '#0ea5e9',
               moonColor: '#e5e7eb',
+              trailColor: '#38bdf8',
+              moonSkin: 'default',
               difficulty: 'normal',
               displayName: '', // Trigger generation
-              highScore: 0
+              highScore: 0,
+              hasSeenTutorial: false
             };
           }
 
-          // Ensure highScore exists for migrated users
+          // Ensure properties exist for migrated users
           if (userSettings.highScore === undefined) {
             userSettings.highScore = 0;
+          }
+          if (userSettings.hasSeenTutorial === undefined) {
+            userSettings.hasSeenTutorial = false;
+          }
+          if (!userSettings.trailColor) {
+            userSettings.trailColor = '#38bdf8';
+          }
+          if (!userSettings.moonSkin) {
+            userSettings.moonSkin = 'default';
           }
 
           // Generate Name if missing
@@ -100,21 +115,33 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleBoundsChange = useCallback((bounds: { min: number, max: number }) => {
-    setOrbitBounds(bounds);
-    setOrbitRadius(prev => Math.max(bounds.min, Math.min(bounds.max, prev)));
-  }, []);
-
   const handleStartGame = useCallback(() => {
     initAudio(); // Ensure audio context is ready on user interaction
+    startBackgroundMusic();
     setScore(0);
     setLevel(1);
-    setOrbitRadius((orbitBounds.min + orbitBounds.max) / 3);
+    
+    if (!settings.hasSeenTutorial) {
+        setIsTutorialActive(true);
+    } else {
+        setIsTutorialActive(false);
+    }
+    
     setGameState('playing');
-  }, [orbitBounds]);
+  }, [settings.hasSeenTutorial]);
+
+  const handleTutorialComplete = useCallback(async () => {
+      setIsTutorialActive(false);
+      const newSettings = { ...settings, hasSeenTutorial: true };
+      setSettings(newSettings);
+      if (user) {
+          await saveSettingsToFirebase(user.uid, { hasSeenTutorial: true });
+      }
+  }, [settings, user]);
 
   const handleGameOver = useCallback(async (finalScoreValue: number) => {
     setFinalScore(finalScoreValue);
+    setIsPressing(false); // Reset input state on game over
     
     // Check for high score
     if (finalScoreValue > settings.highScore) {
@@ -132,6 +159,10 @@ const App: React.FC = () => {
     handleStartGame();
   }, [handleStartGame]);
 
+  const handleExit = useCallback(() => {
+    setGameState('start');
+  }, []);
+
   const handleSaveSettings = useCallback(async (newSettings: Partial<PlayerSettings>) => {
     const settingsToSave = { ...settings, ...newSettings };
     setSettings(settingsToSave);
@@ -141,6 +172,14 @@ const App: React.FC = () => {
     setCustomizeVisible(false);
     setSettingsVisible(false);
   }, [user, settings]);
+
+  const handlePressStart = () => {
+    setIsPressing(true);
+  };
+
+  const handlePressEnd = () => {
+    setIsPressing(false);
+  };
 
   const renderContent = () => {
     switch (gameState) {
@@ -153,6 +192,7 @@ const App: React.FC = () => {
             onShowCustomize={() => setCustomizeVisible(true)}
             onShowSettings={() => setSettingsVisible(true)}
             onShowHighScore={() => setHighScoreVisible(true)}
+            highScore={settings.highScore}
           />
         );
       case 'gameOver':
@@ -161,27 +201,36 @@ const App: React.FC = () => {
             score={finalScore}
             highScore={settings.highScore}
             onRestart={handleRestart}
-            onShowCustomize={() => setCustomizeVisible(true)}
-            onShowSettings={() => setSettingsVisible(true)}
-            onShowHighScore={() => setHighScoreVisible(true)}
+            onExit={handleExit}
           />
         );
       case 'playing':
+        if (isTutorialActive) {
+            return <TutorialOverlay isPressing={isPressing} onComplete={handleTutorialComplete} />;
+        }
+        return null;
       default:
         return null;
     }
   };
 
   return (
-    <div className="relative w-full h-full bg-slate-900">
+    <div 
+      className="relative w-full h-full bg-slate-900 select-none"
+      onMouseDown={handlePressStart}
+      onMouseUp={handlePressEnd}
+      onMouseLeave={handlePressEnd}
+      onTouchStart={handlePressStart}
+      onTouchEnd={handlePressEnd}
+    >
       <GameCanvas 
         gameState={gameState} 
         settings={settings} 
         onGameOver={handleGameOver}
         setScore={setScore}
         setLevel={setLevel}
-        orbitRadius={orbitRadius}
-        onBoundsChange={handleBoundsChange}
+        isPressing={isPressing}
+        isTutorialActive={isTutorialActive}
       />
       <div 
         className="pointer-events-none absolute inset-0 z-10"
@@ -192,21 +241,12 @@ const App: React.FC = () => {
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
-        {gameState === 'playing' && <ScoreDisplay score={score} />}
-        {gameState === 'playing' && <LevelDisplay level={level} />}
-        {user && <PlayerIdDisplay userId={user.uid} displayName={settings.displayName} />}
+        {gameState === 'playing' && !isTutorialActive && <ScoreDisplay score={score} />}
+        {gameState === 'playing' && !isTutorialActive && <LevelDisplay level={level} />}
+        {user && !isTutorialActive && <PlayerIdDisplay userId={user.uid} displayName={settings.displayName} />}
       </div>
       
       {renderContent()}
-
-      {gameState === 'playing' && (
-        <OrbitSlider
-          value={orbitRadius}
-          min={orbitBounds.min}
-          max={orbitBounds.max}
-          onChange={setOrbitRadius}
-        />
-      )}
 
       {isCustomizeVisible && (
         <CustomizeModal 

@@ -30,10 +30,9 @@ const DifficultyOption: React.FC<{ value: Difficulty; current: Difficulty; onCha
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose }) => {
   const [difficulty, setDifficulty] = useState<Difficulty>(settings.difficulty);
-  const [displayName, setDisplayName] = useState(settings.displayName || '');
 
   const handleSave = () => {
-    onSave({ difficulty, displayName });
+    onSave({ difficulty });
   };
 
   return (
@@ -42,20 +41,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, 
         <h1 className="text-3xl sm:text-5xl font-bold mb-6 text-white text-center">Settings</h1>
         
         <div className="bg-slate-700 p-6 rounded-lg w-full flex flex-col gap-6">
-            {/* High Score removed from here */}
-
-            <div>
-                <h2 className="text-xl font-semibold mb-2">Nickname</h2>
-                <input 
-                    type="text" 
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full p-3 rounded bg-slate-800 border border-slate-600 text-white focus:border-sky-500 outline-none"
-                    placeholder="Enter your nickname"
-                    maxLength={15}
-                />
-            </div>
-
+            
             <div>
                 <h2 className="text-xl font-semibold mb-2 text-center">Difficulty</h2>
                 <div className="grid grid-cols-3 gap-4">

@@ -1,6 +1,9 @@
+
 import type { Difficulty } from '../types';
 
 let audioContext: AudioContext | null = null;
+let bgmNodes: AudioNode[] = [];
+let isMusicPlaying = false;
 
 // Initialize the AudioContext. Must be called after a user interaction.
 export const initAudio = () => {
@@ -11,6 +14,111 @@ export const initAudio = () => {
     if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
+};
+
+export const startBackgroundMusic = () => {
+    if (!audioContext) initAudio();
+    if (!audioContext || isMusicPlaying) return;
+
+    isMusicPlaying = true;
+    const now = audioContext.currentTime;
+    
+    const masterGain = audioContext.createGain();
+    masterGain.gain.setValueAtTime(0, now);
+    masterGain.gain.linearRampToValueAtTime(0.4, now + 4); // Slow fade in
+    masterGain.connect(audioContext.destination);
+    bgmNodes.push(masterGain);
+
+    // 1. Deep Foundation Drone (Sine)
+    // A very low, smooth frequency that sits in the background
+    const osc1 = audioContext.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.value = 50; 
+    const osc1Gain = audioContext.createGain();
+    osc1Gain.gain.value = 0.15;
+    osc1.connect(osc1Gain);
+    osc1Gain.connect(masterGain);
+    osc1.start();
+    bgmNodes.push(osc1, osc1Gain);
+
+    // 2. Subtle Harmonic (Sine)
+    // Slightly higher to add depth, but very quiet
+    const osc2 = audioContext.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.value = 80; 
+    const osc2Gain = audioContext.createGain();
+    osc2Gain.gain.value = 0.05;
+    osc2.connect(osc2Gain);
+    osc2Gain.connect(masterGain);
+    osc2.start();
+    bgmNodes.push(osc2, osc2Gain);
+
+    // 3. Space Rumble (Filtered Noise)
+    // Creates the feeling of "empty space" without being hissy wind
+    const bufferSize = audioContext.sampleRate * 5;
+    const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1); // White noise
+    }
+    const noise = audioContext.createBufferSource();
+    noise.buffer = buffer;
+    noise.loop = true;
+    
+    // Lowpass filter to turn white noise into a deep rumble
+    const noiseFilter = audioContext.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.value = 100; 
+    noiseFilter.Q.value = 0.5;
+    
+    const noiseGain = audioContext.createGain();
+    noiseGain.gain.value = 0.12;
+
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(masterGain);
+    noise.start();
+    bgmNodes.push(noise, noiseFilter, noiseGain);
+
+    // LFO to gently modulate the rumble volume for "breathing" effect
+    const lfo = audioContext.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.05; // Very slow cycle (20 seconds)
+    const lfoGain = audioContext.createGain();
+    lfoGain.gain.value = 0.03; // Small modulation depth
+    
+    lfo.connect(lfoGain);
+    lfoGain.connect(noiseGain.gain);
+    lfo.start();
+    bgmNodes.push(lfo, lfoGain);
+};
+
+export const stopBackgroundMusic = () => {
+     if (!isMusicPlaying) return;
+     
+     // Quick fade out if possible
+     const masterGain = bgmNodes[0] as GainNode; 
+     if (masterGain && audioContext) {
+         masterGain.gain.cancelScheduledValues(audioContext.currentTime);
+         masterGain.gain.setValueAtTime(masterGain.gain.value, audioContext.currentTime);
+         masterGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1);
+         
+         setTimeout(() => {
+             bgmNodes.forEach(node => {
+                if (node instanceof OscillatorNode || node instanceof AudioBufferSourceNode) {
+                    try { node.stop(); } catch(e) {}
+                }
+                node.disconnect();
+            });
+            bgmNodes = [];
+         }, 1000);
+     } else {
+         bgmNodes.forEach(node => {
+            node.disconnect();
+         });
+         bgmNodes = [];
+     }
+     isMusicPlaying = false;
 };
 
 const playSound = (

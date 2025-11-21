@@ -6,18 +6,16 @@ interface GameOverScreenProps {
   score: number;
   highScore: number;
   onRestart: () => void;
-  onShowCustomize: () => void;
-  onShowSettings: () => void;
-  onShowHighScore: () => void;
+  onExit: () => void;
 }
 
-export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, highScore, onRestart, onShowCustomize, onShowSettings, onShowHighScore }) => {
+export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, highScore, onRestart, onExit }) => {
   // highScore prop already contains the *updated* high score from App.tsx if it was beaten.
   const isNewRecord = score > 0 && score >= highScore;
 
   return (
     <div 
-      className="absolute inset-0 bg-black bg-opacity-80 backdrop-blur-md flex flex-col justify-center items-center p-4 text-center z-20"
+      className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex flex-col justify-center items-center p-4 text-center z-20"
       style={{
         paddingTop: `calc(1rem + env(safe-area-inset-top))`,
         paddingBottom: `calc(1rem + env(safe-area-inset-bottom))`,
@@ -40,15 +38,14 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, highScore
       <p className="text-xl sm:text-3xl mb-2 text-slate-300">Final Score</p>
       <p className="text-5xl sm:text-7xl font-bold mb-8 text-white">{score}</p>
       
-      <Button onClick={onRestart} className="w-64 mb-4 text-2xl py-4">
-        Restart
-      </Button>
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xs sm:max-w-lg mb-4">
-        <Button onClick={onShowCustomize} variant="secondary" className="w-full sm:w-auto flex-1">Customize</Button>
-        <Button onClick={onShowSettings} variant="secondary" className="w-full sm:w-auto flex-1">Settings</Button>
-      </div>
-      <div className="w-full max-w-xs sm:max-w-lg">
-          <Button onClick={onShowHighScore} variant="secondary" className="w-full">My High Score</Button>
+      <div className="flex flex-col gap-4 w-full max-w-xs items-center">
+        <Button onClick={onRestart} className="w-full text-2xl py-4">
+          Try Again
+        </Button>
+        
+        <Button onClick={onExit} variant="secondary" className="w-full text-xl py-3">
+          Exit
+        </Button>
       </div>
     </div>
   );

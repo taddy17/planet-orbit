@@ -16,7 +16,7 @@ export const LoginScreen: React.FC = () => {
         Planet Orbit
       </h1>
       <p className="text-lg sm:text-2xl animate-pulse font-medium" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-        Connecting to server...
+        Igniting Thrusters...
       </p>
     </div>
   );

@@ -3,12 +3,17 @@ export type GameState = 'login' | 'start' | 'playing' | 'gameOver';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
+export type MoonSkin = 'default' | 'crater' | 'tech' | 'smooth';
+
 export interface PlayerSettings {
   planetColor: string;
   moonColor: string;
+  trailColor: string; // New
+  moonSkin: MoonSkin; // New
   difficulty: Difficulty;
   displayName?: string;
   highScore: number;
+  hasSeenTutorial?: boolean;
 }
 
 export interface LeaderboardEntry {
@@ -40,6 +45,9 @@ export interface Asteroid {
   craters: Crater[];
   shape: Point[];
   nearMissPlayed?: boolean;
+  curveRate?: number;
+  rotation: number;
+  rotationSpeed: number;
 }
 
 export interface Particle {
