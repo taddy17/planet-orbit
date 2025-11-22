@@ -30,9 +30,10 @@ const DifficultyOption: React.FC<{ value: Difficulty; current: Difficulty; onCha
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, onClose }) => {
   const [difficulty, setDifficulty] = useState<Difficulty>(settings.difficulty);
+  const [displayName, setDisplayName] = useState<string>(settings.displayName || '');
 
   const handleSave = () => {
-    onSave({ difficulty });
+    onSave({ difficulty, displayName: displayName.trim() });
   };
 
   return (
@@ -43,7 +44,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, 
         <div className="bg-slate-700 p-6 rounded-lg w-full flex flex-col gap-6">
             
             <div>
-                <h2 className="text-xl font-semibold mb-2 text-center">Difficulty</h2>
+                <label htmlFor="displayName" className="block text-lg font-semibold mb-2 text-slate-200 pl-1">Nickname</label>
+                <input 
+                    id="displayName"
+                    type="text" 
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    maxLength={15}
+                    className="w-full bg-slate-800 border-2 border-slate-600 rounded-lg p-3 text-white font-bold focus:border-sky-500 focus:outline-none transition-colors shadow-inner"
+                    placeholder="Enter pilot name"
+                />
+            </div>
+
+            <div>
+                <h2 className="text-xl font-semibold mb-2 text-center text-slate-200">Difficulty</h2>
                 <div className="grid grid-cols-3 gap-4">
                     <DifficultyOption value="easy" current={difficulty} onChange={setDifficulty} label="Easy" />
                     <DifficultyOption value="normal" current={difficulty} onChange={setDifficulty} label="Normal" />
@@ -53,7 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onSave, 
         </div>
 
         <div className="flex gap-4 mt-8 justify-center">
-          <Button onClick={handleSave} className="w-32">Save</Button>
+          <Button onClick={handleSave} className="w-32 bg-green-600 hover:bg-green-500 shadow-green-500/30">Save</Button>
           <Button onClick={onClose} variant="secondary" className="w-32">Close</Button>
         </div>
       </div>

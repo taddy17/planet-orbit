@@ -62,6 +62,12 @@ function getFirebaseServices(): Promise<FirebaseServices> {
           const auth = getAuth(app);
           const db = getFirestore(app);
           
+          console.log("Firebase services initialized successfully", { 
+            projectId: firebaseConfig.projectId, 
+            appId,
+            authDomain: firebaseConfig.authDomain
+          });
+          
           resolve({ app, auth, db, appId, isAvailable: true });
         } catch (error) {
           console.error("Firebase initialization failed:", error);
@@ -125,19 +131,31 @@ export const onAuthChange = (callback: (user: User | null) => void): (() => void
 export const loadSettings = async (userId: string): Promise<PlayerSettings | null> => {
   try {
     const { db, appId, isAvailable } = await getFirebaseServices();
-    if (!isAvailable || !db || !appId || !userId) return null;
+    if (!isAvailable || !db || !appId || !userId) {
+      console.warn("Cannot load settings: Firebase not available or missing parameters", { isAvailable, hasDb: !!db, appId, userId });
+      return null;
+    }
     
     const docRef = doc(db, 'artifacts', appId, 'users', userId);
     const docSnap = await getDoc(docRef);
     
     if (docSnap.exists()) {
-        return docSnap.data() as PlayerSettings;
+        const data = docSnap.data() as PlayerSettings;
+        console.log("Settings loaded successfully", { userId, highScore: data.highScore, path: `artifacts/${appId}/users/${userId}` });
+        return data;
     }
     
     // Fallback for old data structure for seamless migration
     const oldDocRef = doc(db, 'users', userId);
     const oldDocSnap = await getDoc(oldDocRef);
-    return oldDocSnap.exists() ? (oldDocSnap.data() as PlayerSettings) : null;
+    if (oldDocSnap.exists()) {
+      const data = oldDocSnap.data() as PlayerSettings;
+      console.log("Settings loaded from old path", { userId, highScore: data.highScore });
+      return data;
+    }
+    
+    console.log("No settings found for user", { userId });
+    return null;
 
   } catch (error) {
     console.error("Error loading settings:", error);
@@ -148,10 +166,15 @@ export const loadSettings = async (userId: string): Promise<PlayerSettings | nul
 export const saveSettings = async (userId: string, settings: Partial<PlayerSettings>) => {
   try {
     const { db, appId, isAvailable } = await getFirebaseServices();
-    if (!isAvailable || !db || !appId || !userId) return;
+    if (!isAvailable || !db || !appId || !userId) {
+      console.warn("Cannot save settings: Firebase not available or missing parameters", { isAvailable, hasDb: !!db, appId, userId });
+      return;
+    }
     const docRef = doc(db, 'artifacts', appId, 'users', userId);
     await setDoc(docRef, settings, { merge: true });
+    console.log("Settings saved successfully", { userId, settings, path: `artifacts/${appId}/users/${userId}` });
   } catch (error) {
     console.error("Error saving settings:", error);
+    throw error; // Re-throw so callers know it failed
   }
 };

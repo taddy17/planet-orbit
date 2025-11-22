@@ -126,11 +126,35 @@
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.5.0/",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1"
   }
 }
 </script>
+  <script>
+    // Firebase configuration - must be set before module scripts load
+    (function() {
+      const firebaseConfig = {
+        apiKey: "AIzaSyAnrjO1gzpzk6GADunPBWFptOoamDuUHSQ",
+        authDomain: "planet-orbit-scores.firebaseapp.com",
+        projectId: "planet-orbit-scores",
+        storageBucket: "planet-orbit-scores.firebasestorage.app",
+        messagingSenderId: "112990492288",
+        appId: "1:112990492288:web:13fcefb777d8052f493865"
+      };
+
+      // Set Firebase config and app ID for the Firebase service
+      window.__firebase_config = JSON.stringify(firebaseConfig);
+      window.__app_id = firebaseConfig.appId;
+      
+      console.log("Firebase config initialized", { 
+        projectId: firebaseConfig.projectId, 
+        appId: firebaseConfig.appId,
+        configAvailable: !!window.__firebase_config,
+        appIdAvailable: !!window.__app_id
+      });
+    })();
+  </script>
 </head>
   <body>
     <div id="root"></div>

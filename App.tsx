@@ -62,34 +62,34 @@ const App: React.FC = () => {
       authUnsubscribe = onAuthChange(async (firebaseUser) => {
         setUser(firebaseUser);
         if (firebaseUser) {
+          console.log("User authenticated", { uid: firebaseUser.uid, isAnonymous: firebaseUser.isAnonymous });
           let userSettings = await loadSettings(firebaseUser.uid);
           
-          // Initialize or Migrate Settings
+          const defaultSettings: PlayerSettings = {
+            planetColor: '#0ea5e9',
+            moonColor: '#e5e7eb',
+            trailColor: '#38bdf8',
+            moonSkin: 'default',
+            difficulty: 'normal',
+            displayName: '', 
+            highScore: 0,
+            hasSeenTutorial: false
+          };
+
+          // Initialize or Merge Settings
           if (!userSettings) {
-             userSettings = {
-              planetColor: '#0ea5e9',
-              moonColor: '#e5e7eb',
-              trailColor: '#38bdf8',
-              moonSkin: 'default',
-              difficulty: 'normal',
-              displayName: '', // Trigger generation
-              highScore: 0,
-              hasSeenTutorial: false
-            };
+             console.log("No existing settings found, initializing new user");
+             userSettings = { ...defaultSettings };
+          } else {
+            console.log("Loaded user settings, merging with defaults", { highScore: userSettings.highScore });
+            // Merge loaded settings onto default settings to ensure all keys exist
+            userSettings = { ...defaultSettings, ...userSettings };
           }
 
-          // Ensure properties exist for migrated users
-          if (userSettings.highScore === undefined) {
-            userSettings.highScore = 0;
-          }
-          if (userSettings.hasSeenTutorial === undefined) {
-            userSettings.hasSeenTutorial = false;
-          }
-          if (!userSettings.trailColor) {
-            userSettings.trailColor = '#38bdf8';
-          }
-          if (!userSettings.moonSkin) {
-            userSettings.moonSkin = 'default';
+          // Fix malformed names from previous bad AI generation
+          if (userSettings.displayName && userSettings.displayName.length > 25) {
+              console.log("Detecting malformed name, resetting...");
+              userSettings.displayName = '';
           }
 
           // Generate Name if missing
@@ -148,7 +148,15 @@ const App: React.FC = () => {
         const newSettings = { ...settings, highScore: finalScoreValue };
         setSettings(newSettings);
         if (user) {
-            await saveSettingsToFirebase(user.uid, { highScore: finalScoreValue });
+            try {
+              console.log("Saving new high score", { userId: user.uid, highScore: finalScoreValue, previousHighScore: settings.highScore });
+              await saveSettingsToFirebase(user.uid, { highScore: finalScoreValue });
+              console.log("High score saved successfully");
+            } catch (error) {
+              console.error("Failed to save high score:", error);
+            }
+        } else {
+          console.warn("Cannot save high score: user not authenticated");
         }
     }
 

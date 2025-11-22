@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 let ai: GoogleGenAI | null = null;
@@ -7,9 +8,11 @@ const getAI = (): GoogleGenAI | null => {
     return ai;
   }
   try {
-    // This is a global variable injected by the hosting environment.
-    if (process.env.API_KEY) {
-      ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Safe access for browser environment where process might not be defined
+    const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : undefined;
+
+    if (apiKey) {
+      ai = new GoogleGenAI({ apiKey: apiKey });
       return ai;
     }
     console.warn("API_KEY environment variable not set. Gemini features will be disabled.");
@@ -27,9 +30,12 @@ export const generatePlayerName = async (): Promise<string> => {
     try {
         const response = await aiClient.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: [{ parts: [{ text: "Generate a cool, unique, two-word space-themed callsign for a game player. Examples: Star Hopper, Comet Drifter, Nebula Nomad. It should be title-cased." }] }],
+            contents: [{ parts: [{ text: "Generate exactly ONE cool, unique, two-word space-themed callsign for a game player. Output ONLY the name. Do not use numbers, lists, or introductory text." }] }],
         });
-        const text = response.text.trim().replace(/"/g, '');
+        // Cleanup: Take first line, remove markdown bolding (**), quotes, and extra spaces
+        let text = response.text.trim().split('\n')[0];
+        text = text.replace(/[\*"]/g, '').trim();
+        
         return text || "Galaxy Rider";
     } catch (error) {
         console.error("Error generating player name:", error);

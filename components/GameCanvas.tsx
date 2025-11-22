@@ -39,6 +39,7 @@ const ASTEROID_STROKES_PALETTES = {
 };
 
 const darkenColor = (hex: string, percent: number): string => {
+    if (!hex) return '#000000';
     const factor = 1 - percent / 100;
     let r = parseInt(hex.substring(1, 3), 16);
     let g = parseInt(hex.substring(3, 5), 16);
@@ -48,12 +49,13 @@ const darkenColor = (hex: string, percent: number): string => {
     g = Math.floor(g * factor);
     b = Math.floor(b * factor);
 
-    const toHex = (c: number) => ('00' + c.toString(16)).slice(-2);
+    const toHex = (c: number) => ('00' + (isNaN(c) ? 0 : c).toString(16)).slice(-2);
 
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
 const lightenColor = (hex: string, percent: number): string => {
+    if (!hex) return '#ffffff';
     const factor = 1 + percent / 100;
     let r = parseInt(hex.substring(1, 3), 16);
     let g = parseInt(hex.substring(3, 5), 16);
@@ -63,12 +65,13 @@ const lightenColor = (hex: string, percent: number): string => {
     g = Math.min(255, Math.floor(g * factor));
     b = Math.min(255, Math.floor(b * factor));
     
-    const toHex = (c: number) => ('00' + c.toString(16)).slice(-2);
+    const toHex = (c: number) => ('00' + (isNaN(c) ? 255 : c).toString(16)).slice(-2);
 
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
 const hexToRgb = (hex: string) => {
+  if (!hex) return { r: 255, g: 255, b: 255 };
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? {
     r: parseInt(result[1], 16),
@@ -377,7 +380,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, settings, onG
 
     // Draw Planet Glow (Optimized: No shadowBlur)
     ctx.save();
-    ctx.fillStyle = settings.planetColor;
+    const planetColor = settings.planetColor || '#0ea5e9'; // Fallback
+    ctx.fillStyle = planetColor;
     ctx.globalAlpha = 0.15;
     ctx.beginPath();
     ctx.arc(planet.current.x, planet.current.y, planet.current.radius * 1.5, 0, Math.PI * 2);
@@ -396,7 +400,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, settings, onG
         planet.current.y,
         planet.current.radius
     );
-    const baseColor = settings.planetColor;
+    const baseColor = planetColor;
     const lightColor = lightenColor(baseColor, 20);
     const darkColor = darkenColor(baseColor, 40);
     planetGradient.addColorStop(0, lightColor);
@@ -480,9 +484,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, settings, onG
         const moonY = planet.current.y + Math.sin(moon.current.angle) * moon.current.orbitRadius;
 
         // Draw Speed Boost / Movement Trail
+        const moonColor = settings.moonColor || '#e5e7eb'; // Fallback
+        const trailColor = settings.trailColor || '#38bdf8'; // Fallback
+        const { r, g, b } = hexToRgb(trailColor);
+        
         const trailLength = activePowerUps.current.speedBoost.active ? 15 : 8;
         const currentSpeed = activePowerUps.current.speedBoost.active ? moon.current.speed * 2 : moon.current.speed;
-        const { r, g, b } = hexToRgb(settings.trailColor || settings.moonColor);
         
         for (let i = 1; i <= trailLength; i++) {
             const pastAngle = moon.current.angle - currentSpeed * i * 1.5;
@@ -502,7 +509,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, settings, onG
         // Manual Moon Glow
         ctx.beginPath();
         const glowRadius = activePowerUps.current.speedBoost.active ? moon.current.radius * 2.5 : moon.current.radius * 1.8;
-        const glowColor = activePowerUps.current.speedBoost.active ? '#fbb_f24' : settings.moonColor;
+        const glowColor = activePowerUps.current.speedBoost.active ? '#fbb_f24' : moonColor;
         ctx.fillStyle = glowColor;
         ctx.globalAlpha = 0.2;
         ctx.arc(0, 0, glowRadius, 0, Math.PI * 2);
@@ -512,12 +519,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, settings, onG
         // MOON SKINS RENDERING
         if (settings.moonSkin === 'tech') {
             // Tech Skin: Geometric, rotating
-            ctx.fillStyle = settings.moonColor;
+            ctx.fillStyle = moonColor;
             ctx.beginPath();
             ctx.rect(-moon.current.radius * 0.6, -moon.current.radius * 0.6, moon.current.radius * 1.2, moon.current.radius * 1.2);
             ctx.fill();
             
-            ctx.strokeStyle = darkenColor(settings.moonColor, 30);
+            ctx.strokeStyle = darkenColor(moonColor, 30);
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(0, -moon.current.radius);
@@ -534,7 +541,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, settings, onG
              // Smooth Skin: Gradient, clean
              const grad = ctx.createRadialGradient(-2, -2, 0, 0, 0, moon.current.radius);
              grad.addColorStop(0, '#ffffff');
-             grad.addColorStop(1, settings.moonColor);
+             grad.addColorStop(1, moonColor);
              ctx.fillStyle = grad;
              ctx.beginPath();
              ctx.arc(0, 0, moon.current.radius, 0, Math.PI * 2);
@@ -542,12 +549,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, settings, onG
 
         } else if (settings.moonSkin === 'crater') {
             // Crater Skin: Heavy craters
-            ctx.fillStyle = settings.moonColor;
+            ctx.fillStyle = moonColor;
             ctx.beginPath();
             ctx.arc(0, 0, moon.current.radius, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = darkenColor(settings.moonColor, 20);
+            ctx.fillStyle = darkenColor(moonColor, 20);
             ctx.beginPath();
             ctx.arc(-2, -2, 3, 0, Math.PI*2);
             ctx.fill();
@@ -562,12 +569,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, settings, onG
             // Default Skin
             ctx.beginPath();
             ctx.arc(0, 0, moon.current.radius, 0, Math.PI * 2);
-            ctx.fillStyle = settings.moonColor;
+            ctx.fillStyle = moonColor;
             ctx.fill();
 
             // Standard faint craters
-            ctx.fillStyle = darkenColor(settings.moonColor, 15);
-            ctx.strokeStyle = darkenColor(settings.moonColor, 30);
+            ctx.fillStyle = darkenColor(moonColor, 15);
+            ctx.strokeStyle = darkenColor(moonColor, 30);
             ctx.lineWidth = 0.5;
             for (let i = 0; i < 3; i++) {
                 const craterAngle = (i * 1.8);
