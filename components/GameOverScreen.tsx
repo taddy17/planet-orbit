@@ -5,11 +5,12 @@ import { Button } from './Button';
 interface GameOverScreenProps {
   score: number;
   highScore: number;
+  creditsEarned: number;
   onRestart: () => void;
   onExit: () => void;
 }
 
-export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, highScore, onRestart, onExit }) => {
+export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, highScore, creditsEarned, onRestart, onExit }) => {
   // highScore prop already contains the *updated* high score from App.tsx if it was beaten.
   const isNewRecord = score > 0 && score >= highScore;
 
@@ -36,7 +37,15 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({ score, highScore
       )}
 
       <p className="text-xl sm:text-3xl mb-2 text-slate-300">Final Score</p>
-      <p className="text-5xl sm:text-7xl font-bold mb-8 text-white">{score}</p>
+      <p className="text-5xl sm:text-7xl font-bold mb-4 text-white">{score}</p>
+      
+      <div className="mb-8 flex flex-col items-center">
+        <p className="text-slate-400 text-lg mb-1">Rewards</p>
+        <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-full border border-amber-500/30">
+             <span className="text-amber-400 text-xl">🪙</span>
+             <span className="text-white font-bold text-xl">+{creditsEarned}</span>
+        </div>
+      </div>
       
       <div className="flex flex-col gap-4 w-full max-w-xs items-center">
         <Button onClick={onRestart} className="w-full text-2xl py-4">

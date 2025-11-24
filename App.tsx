@@ -5,20 +5,22 @@ import {
   connectAndAuth,
   onAuthChange, 
   loadSettings, 
-  saveSettings as saveSettingsToFirebase, 
+  saveSettings as saveSettingsToFirebase,
+  getTopLeaderboard,
 } from './services/firebase';
 import { generatePlayerName } from './services/gemini';
 import { initAudio, startBackgroundMusic } from './services/sound';
-import type { GameState, PlayerSettings, Difficulty } from './types';
+import type { GameState, PlayerSettings, LeaderboardEntry, StoreItem, Difficulty } from './types';
 import { GameCanvas } from './components/GameCanvas';
 import { LoginScreen } from './components/LoginScreen';
 import { StartScreen } from './components/StartScreen';
 import { GameOverScreen } from './components/GameOverScreen';
 import { ScoreDisplay } from './components/ScoreDisplay';
 import { PlayerIdDisplay } from './components/PlayerIdDisplay';
-import { CustomizeModal } from './components/CustomizeModal';
-import { SettingsModal } from './components/SettingsModal';
+import { CustomizationModal } from './components/CustomizationModal';
+import { StoreModal } from './components/StoreModal';
 import { HighScoreModal } from './components/HighScoreModal';
+import { LeaderboardModal } from './components/LeaderboardModal';
 import { LevelDisplay } from './components/LevelDisplay';
 import { TutorialOverlay } from './components/TutorialOverlay';
 
@@ -27,6 +29,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [score, setScore] = useState(0);
   const [finalScore, setFinalScore] = useState(0);
+  const [creditsEarned, setCreditsEarned] = useState(0);
   const [level, setLevel] = useState(1);
 
   const [settings, setSettings] = useState<PlayerSettings>({
@@ -34,15 +37,22 @@ const App: React.FC = () => {
     moonColor: '#e5e7eb',
     trailColor: '#38bdf8',
     moonSkin: 'default',
+    background: 'deep_space',
     difficulty: 'normal',
     displayName: 'Guest Pilot',
     highScore: 0,
-    hasSeenTutorial: false
+    highScores: { easy: 0, normal: 0, hard: 0 },
+    hasSeenTutorial: false,
+    credits: 0,
+    unlockedItems: []
   });
 
-  const [isCustomizeVisible, setCustomizeVisible] = useState(false);
-  const [isSettingsVisible, setSettingsVisible] = useState(false);
+  const [isCustomizationVisible, setCustomizationVisible] = useState(false);
+  const [isStoreVisible, setStoreVisible] = useState(false);
   const [isHighScoreVisible, setHighScoreVisible] = useState(false);
+  const [isLeaderboardVisible, setLeaderboardVisible] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
   const [isTutorialActive, setIsTutorialActive] = useState(false);
   
   const [isPressing, setIsPressing] = useState(false);
@@ -70,10 +80,14 @@ const App: React.FC = () => {
             moonColor: '#e5e7eb',
             trailColor: '#38bdf8',
             moonSkin: 'default',
+            background: 'deep_space',
             difficulty: 'normal',
             displayName: '', 
             highScore: 0,
-            hasSeenTutorial: false
+            highScores: { easy: 0, normal: 0, hard: 0 },
+            hasSeenTutorial: false,
+            credits: 0,
+            unlockedItems: []
           };
 
           // Initialize or Merge Settings
@@ -84,15 +98,25 @@ const App: React.FC = () => {
             console.log("Loaded user settings, merging with defaults", { highScore: userSettings.highScore });
             // Merge loaded settings onto default settings to ensure all keys exist
             userSettings = { ...defaultSettings, ...userSettings };
+            
+            // Migration: Ensure highScores object exists
+            if (!userSettings.highScores) {
+                userSettings.highScores = {
+                    easy: 0,
+                    normal: userSettings.highScore || 0, // Map legacy high score to normal
+                    hard: 0
+                };
+            }
+
+            if (!userSettings.unlockedItems) userSettings.unlockedItems = [];
+            if (!userSettings.background) userSettings.background = 'deep_space';
           }
 
-          // Fix malformed names from previous bad AI generation
           if (userSettings.displayName && userSettings.displayName.length > 25) {
               console.log("Detecting malformed name, resetting...");
               userSettings.displayName = '';
           }
 
-          // Generate Name if missing
           if (!userSettings.displayName) {
               const newName = await generatePlayerName();
               userSettings.displayName = newName;
@@ -116,7 +140,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleStartGame = useCallback(() => {
-    initAudio(); // Ensure audio context is ready on user interaction
+    initAudio(); 
     startBackgroundMusic();
     setScore(0);
     setLevel(1);
@@ -141,22 +165,54 @@ const App: React.FC = () => {
 
   const handleGameOver = useCallback(async (finalScoreValue: number) => {
     setFinalScore(finalScoreValue);
-    setIsPressing(false); // Reset input state on game over
+    setIsPressing(false); 
     
-    // Check for high score
-    if (finalScoreValue > settings.highScore) {
-        const newSettings = { ...settings, highScore: finalScoreValue };
-        setSettings(newSettings);
-        if (user) {
-            try {
-              console.log("Saving new high score", { userId: user.uid, highScore: finalScoreValue, previousHighScore: settings.highScore });
-              await saveSettingsToFirebase(user.uid, { highScore: finalScoreValue });
-              console.log("High score saved successfully");
-            } catch (error) {
-              console.error("Failed to save high score:", error);
-            }
-        } else {
-          console.warn("Cannot save high score: user not authenticated");
+    const earned = Math.floor(finalScoreValue / 10);
+    setCreditsEarned(earned);
+
+    // Update Difficulty-Specific High Score
+    const currentDiff = settings.difficulty;
+    const currentHighScores = settings.highScores || { easy: 0, normal: 0, hard: 0 };
+    
+    // Ensure object structure integrity
+    if (typeof currentHighScores.easy !== 'number') currentHighScores.easy = 0;
+    if (typeof currentHighScores.normal !== 'number') currentHighScores.normal = 0;
+    if (typeof currentHighScores.hard !== 'number') currentHighScores.hard = 0;
+
+    const newDifficultyHighScore = Math.max(currentHighScores[currentDiff], finalScoreValue);
+    
+    const newHighScores = {
+        ...currentHighScores,
+        [currentDiff]: newDifficultyHighScore
+    };
+
+    // Only update the legacy global 'highScore' if we are playing on Normal mode.
+    // This ensures that the legacy field (used for the Normal leaderboard) isn't polluted by Easy mode scores.
+    // Existing scores are effectively Normal scores, so this maintains consistency.
+    let newLegacyHighScore = settings.highScore;
+    if (currentDiff === 'normal') {
+        newLegacyHighScore = Math.max(settings.highScore, finalScoreValue);
+    }
+
+    const newSettings = { 
+        ...settings, 
+        highScores: newHighScores,
+        highScore: newLegacyHighScore,
+        credits: (settings.credits || 0) + earned
+    };
+    
+    setSettings(newSettings);
+
+    if (user) {
+        try {
+          console.log("Saving game stats", { userId: user.uid, difficulty: currentDiff, newHighScore: newDifficultyHighScore });
+          await saveSettingsToFirebase(user.uid, { 
+              highScore: newSettings.highScore, 
+              highScores: newHighScores,
+              credits: newSettings.credits
+          });
+        } catch (error) {
+          console.error("Failed to save stats:", error);
         }
     }
 
@@ -177,9 +233,55 @@ const App: React.FC = () => {
     if(user) {
       await saveSettingsToFirebase(user.uid, settingsToSave);
     }
-    setCustomizeVisible(false);
-    setSettingsVisible(false);
+    setCustomizationVisible(false);
   }, [user, settings]);
+
+  const fetchLeaderboard = useCallback(async (difficulty: Difficulty) => {
+    setIsLoadingLeaderboard(true);
+    setLeaderboardData([]); 
+    try {
+      const topScores = await getTopLeaderboard(10, difficulty);
+      setLeaderboardData(topScores);
+    } catch (error) {
+      console.error("Error loading leaderboard:", error);
+    } finally {
+      setIsLoadingLeaderboard(false);
+    }
+  }, []);
+
+  const handleShowLeaderboard = useCallback(() => {
+    setLeaderboardVisible(true);
+    fetchLeaderboard(settings.difficulty);
+  }, [fetchLeaderboard, settings.difficulty]);
+
+  const handlePurchaseItem = useCallback(async (item: StoreItem) => {
+      if (settings.credits >= item.price) {
+          const newCredits = settings.credits - item.price;
+          const newUnlocked = [...settings.unlockedItems, item.id];
+          
+          const updates = {
+              credits: newCredits,
+              unlockedItems: newUnlocked
+          };
+
+          const newSettings = { ...settings, ...updates };
+          setSettings(newSettings);
+          
+          if (user) {
+              await saveSettingsToFirebase(user.uid, updates);
+          }
+      }
+  }, [settings, user]);
+
+  const handleEquipItem = useCallback(async (item: StoreItem) => {
+      const updates = { [item.settingKey]: item.value };
+      const newSettings = { ...settings, ...updates };
+      setSettings(newSettings);
+      
+      if (user) {
+          await saveSettingsToFirebase(user.uid, updates);
+      }
+  }, [settings, user]);
 
   const handlePressStart = () => {
     setIsPressing(true);
@@ -194,20 +296,25 @@ const App: React.FC = () => {
       case 'login':
         return <LoginScreen />;
       case 'start':
+        // Display high score for the CURRENTLY selected difficulty
+        const currentDifficultyScore = settings.highScores?.[settings.difficulty] || 0;
         return (
           <StartScreen
             onStart={handleStartGame}
-            onShowCustomize={() => setCustomizeVisible(true)}
-            onShowSettings={() => setSettingsVisible(true)}
+            onShowCustomize={() => setCustomizationVisible(true)}
             onShowHighScore={() => setHighScoreVisible(true)}
-            highScore={settings.highScore}
+            onShowLeaderboard={handleShowLeaderboard}
+            onShowStore={() => setStoreVisible(true)}
+            highScore={currentDifficultyScore}
+            credits={settings.credits}
           />
         );
       case 'gameOver':
         return (
           <GameOverScreen
             score={finalScore}
-            highScore={settings.highScore}
+            highScore={settings.highScores?.[settings.difficulty] || 0}
+            creditsEarned={creditsEarned}
             onRestart={handleRestart}
             onExit={handleExit}
           />
@@ -256,24 +363,35 @@ const App: React.FC = () => {
       
       {renderContent()}
 
-      {isCustomizeVisible && (
-        <CustomizeModal 
+      {isCustomizationVisible && (
+        <CustomizationModal 
           settings={settings}
           onSave={handleSaveSettings}
-          onClose={() => setCustomizeVisible(false)}
+          onClose={() => setCustomizationVisible(false)}
         />
       )}
-      {isSettingsVisible && (
-        <SettingsModal 
-          settings={settings}
-          onSave={handleSaveSettings}
-          onClose={() => setSettingsVisible(false)}
-        />
+      {isStoreVisible && (
+          <StoreModal 
+            settings={settings}
+            onPurchase={handlePurchaseItem}
+            onEquip={handleEquipItem}
+            onClose={() => setStoreVisible(false)}
+          />
       )}
       {isHighScoreVisible && (
         <HighScoreModal 
-          score={settings.highScore}
+          score={settings.highScores?.[settings.difficulty] || 0}
           onClose={() => setHighScoreVisible(false)}
+        />
+      )}
+      {isLeaderboardVisible && (
+        <LeaderboardModal 
+          globalScores={leaderboardData}
+          isLoading={isLoadingLeaderboard}
+          currentUserId={user?.uid}
+          onClose={() => setLeaderboardVisible(false)}
+          onFetchDifficulty={fetchLeaderboard}
+          initialDifficulty={settings.difficulty}
         />
       )}
     </div>

@@ -3,20 +3,41 @@ export type GameState = 'login' | 'start' | 'playing' | 'gameOver';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
-export type MoonSkin = 'default' | 'crater' | 'tech' | 'smooth';
+export type MoonSkin = 'default' | 'crater' | 'tech' | 'smooth' | 'ice' | 'camo' | 'golden';
+
+export type BackgroundType = 'deep_space' | 'nebula_storm' | 'star_field' | 'void' | 'cyber_grid';
 
 export interface PlayerSettings {
   planetColor: string;
   moonColor: string;
-  trailColor: string; // New
-  moonSkin: MoonSkin; // New
+  trailColor: string; 
+  moonSkin: MoonSkin;
+  background: BackgroundType;
   difficulty: Difficulty;
   displayName?: string;
-  highScore: number;
+  highScore: number; // Legacy/Global max
+  highScores: Record<Difficulty, number>; // New: Score per difficulty
   hasSeenTutorial?: boolean;
+  credits: number;
+  unlockedItems: string[];
+}
+
+export type StoreCategory = 'skin' | 'planet' | 'trail' | 'background';
+
+export interface StoreItem {
+  id: string;
+  category: StoreCategory;
+  name: string;
+  description: string;
+  price: number;
+  // The actual value to apply to settings when equipped
+  value: any; 
+  // Specifically for planet/trail which are colors, or skin/bg which are enums
+  settingKey: keyof PlayerSettings; 
 }
 
 export interface LeaderboardEntry {
+  userId?: string;
   displayName?: string;
   score: number;
   createdAt: any;

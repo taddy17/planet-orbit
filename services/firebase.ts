@@ -1,3 +1,4 @@
+
 import { initializeApp, FirebaseApp } from "firebase/app";
 import { 
   getAuth, 
@@ -12,10 +13,15 @@ import {
   doc, 
   getDoc, 
   setDoc, 
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
   Firestore
 } from "firebase/firestore";
 
-import type { PlayerSettings } from '../types';
+import type { PlayerSettings, LeaderboardEntry, Difficulty } from '../types';
 
 declare global {
   interface Window {
@@ -176,5 +182,115 @@ export const saveSettings = async (userId: string, settings: Partial<PlayerSetti
   } catch (error) {
     console.error("Error saving settings:", error);
     throw error; // Re-throw so callers know it failed
+  }
+};
+
+export const getTopLeaderboard = async (limitCount: number = 10, difficulty: Difficulty = 'normal'): Promise<LeaderboardEntry[]> => {
+  try {
+    const { db, appId, isAvailable } = await getFirebaseServices();
+    if (!isAvailable || !db || !appId) {
+      console.warn("Cannot fetch leaderboard: Firebase not available", { isAvailable, hasDb: !!db, appId });
+      return [];
+    }
+    
+    const usersRef = collection(db, 'artifacts', appId, 'users');
+    
+    // Determine Field to sort by. 
+    // IF difficulty is 'normal', use 'highScore' (legacy field) to ensure all existing users are included.
+    let scoreField = `highScores.${difficulty}`;
+    if (difficulty === 'normal') {
+        scoreField = 'highScore';
+    }
+
+    // Try to use indexed query first
+    try {
+      const q = query(
+        usersRef,
+        orderBy(scoreField, 'desc'),
+        limit(limitCount * 2) 
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      const userMap = new Map<string, LeaderboardEntry>();
+      
+      querySnapshot.forEach((docSnap) => {
+        const userId = docSnap.id;
+        const data = docSnap.data();
+        
+        let scoreVal = 0;
+        
+        if (difficulty === 'normal') {
+            // For normal, explicitly take the max of legacy 'highScore' and specific 'highScores.normal'
+            // This handles cases where data might be partially migrated
+            scoreVal = data.highScore || 0;
+            const specific = data.highScores?.normal || 0;
+            scoreVal = Math.max(scoreVal, specific);
+        } else {
+            scoreVal = data?.highScores?.[difficulty];
+        }
+
+        if (typeof scoreVal === 'number' && scoreVal > 0) {
+          const existingEntry = userMap.get(userId);
+          if (!existingEntry || scoreVal > existingEntry.score) {
+            userMap.set(userId, {
+              userId: userId,
+              displayName: data.displayName || 'Unknown Pilot',
+              score: scoreVal,
+              createdAt: null
+            });
+          }
+        }
+      });
+      
+      const entries = Array.from(userMap.values())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limitCount);
+      
+      return entries;
+    } catch (queryError: any) {
+      console.warn(`Indexed query for ${scoreField} failed, falling back to in-memory sort.`);
+      
+      const allUsersQuery = query(usersRef, limit(1000));
+      const allSnapshot = await getDocs(allUsersQuery);
+      
+      const userMap = new Map<string, LeaderboardEntry>();
+      
+      allSnapshot.forEach((docSnap) => {
+        const userId = docSnap.id;
+        const data = docSnap.data();
+        
+        let scoreVal = 0;
+
+        if (difficulty === 'normal') {
+            scoreVal = data.highScore || 0;
+            const specific = data.highScores?.normal || 0;
+            scoreVal = Math.max(scoreVal, specific);
+        } else {
+            scoreVal = data?.highScores?.[difficulty] || 0;
+        }
+
+        if (typeof scoreVal === 'number' && scoreVal > 0) {
+          const existingEntry = userMap.get(userId);
+          if (!existingEntry || scoreVal > existingEntry.score) {
+            userMap.set(userId, {
+              userId: userId,
+              displayName: data.displayName || 'Unknown Pilot',
+              score: scoreVal,
+              createdAt: null
+            });
+          }
+        }
+      });
+      
+      const entries = Array.from(userMap.values())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limitCount);
+      
+      return entries;
+    }
+  } catch (error) {
+    console.error("Error fetching leaderboard:", error);
+    return [];
   }
 };
