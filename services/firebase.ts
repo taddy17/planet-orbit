@@ -39,6 +39,18 @@ interface FirebaseServices {
 }
 
 let firebasePromise: Promise<FirebaseServices> | null = null;
+const LOCAL_STORAGE_KEY = 'planet_orbit_settings_v1';
+const NETWORK_TIMEOUT_MS = 3000; // 3 seconds timeout for network operations
+
+// Helper to race a promise against a timeout
+function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => 
+            setTimeout(() => reject(new Error(errorMessage)), ms)
+        )
+    ]);
+}
 
 function getFirebaseServices(): Promise<FirebaseServices> {
   if (firebasePromise) {
@@ -46,7 +58,7 @@ function getFirebaseServices(): Promise<FirebaseServices> {
   }
 
   firebasePromise = new Promise((resolve) => {
-    const maxWaitTime = 5000; // 5 seconds
+    const maxWaitTime = 5000; // 5 seconds total init wait
     const checkInterval = 100; // 100 ms
     let elapsedTime = 0;
 
@@ -94,6 +106,27 @@ function getFirebaseServices(): Promise<FirebaseServices> {
   return firebasePromise;
 }
 
+// --- Local Storage Helpers ---
+
+export const loadLocalSettings = (): PlayerSettings | null => {
+    try {
+        const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch(e) {
+        console.error("Local load failed", e);
+        return null;
+    }
+}
+
+export const saveLocalSettings = (settings: PlayerSettings) => {
+    try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(settings));
+    } catch(e) {
+        console.error("Local save failed", e);
+    }
+}
+
 // --- Public API ---
 
 export const connectAndAuth = async (): Promise<boolean> => {
@@ -102,12 +135,22 @@ export const connectAndAuth = async (): Promise<boolean> => {
     if (!isAvailable || !auth) {
       return false;
     }
-    if (!auth.currentUser) {
-      await signInAnonymously(auth);
+    
+    // Check if user is already signed in (Firebase restores session)
+    if (auth.currentUser) {
+        return true;
     }
+
+    // Race login against timeout to prevent freezing in airplane mode
+    await withTimeout(
+        signInAnonymously(auth),
+        NETWORK_TIMEOUT_MS,
+        "Auth timed out"
+    );
+    
     return true;
   } catch (error) {
-    console.error("Anonymous sign-in failed", error);
+    console.error("Anonymous sign-in failed or timed out", error);
     return false;
   }
 };
@@ -138,25 +181,36 @@ export const loadSettings = async (userId: string): Promise<PlayerSettings | nul
   try {
     const { db, appId, isAvailable } = await getFirebaseServices();
     if (!isAvailable || !db || !appId || !userId) {
-      console.warn("Cannot load settings: Firebase not available or missing parameters", { isAvailable, hasDb: !!db, appId, userId });
+      console.warn("Cannot load settings: Firebase not available or missing parameters");
       return null;
     }
     
     const docRef = doc(db, 'artifacts', appId, 'users', userId);
-    const docSnap = await getDoc(docRef);
+    
+    // Wrap fetching in timeout
+    const docSnap = await withTimeout(
+        getDoc(docRef),
+        NETWORK_TIMEOUT_MS,
+        "Load settings timed out"
+    );
     
     if (docSnap.exists()) {
         const data = docSnap.data() as PlayerSettings;
-        console.log("Settings loaded successfully", { userId, highScore: data.highScore, path: `artifacts/${appId}/users/${userId}` });
+        console.log("Settings loaded successfully", { userId });
         return data;
     }
     
-    // Fallback for old data structure for seamless migration
+    // Fallback check for old path
     const oldDocRef = doc(db, 'users', userId);
-    const oldDocSnap = await getDoc(oldDocRef);
+    const oldDocSnap = await withTimeout(
+        getDoc(oldDocRef),
+        NETWORK_TIMEOUT_MS, 
+        "Load legacy settings timed out"
+    );
+
     if (oldDocSnap.exists()) {
       const data = oldDocSnap.data() as PlayerSettings;
-      console.log("Settings loaded from old path", { userId, highScore: data.highScore });
+      console.log("Settings loaded from old path", { userId });
       return data;
     }
     
@@ -164,7 +218,7 @@ export const loadSettings = async (userId: string): Promise<PlayerSettings | nul
     return null;
 
   } catch (error) {
-    console.error("Error loading settings:", error);
+    console.error("Error loading settings (using fallback):", error);
     return null;
   }
 };
@@ -173,15 +227,22 @@ export const saveSettings = async (userId: string, settings: Partial<PlayerSetti
   try {
     const { db, appId, isAvailable } = await getFirebaseServices();
     if (!isAvailable || !db || !appId || !userId) {
-      console.warn("Cannot save settings: Firebase not available or missing parameters", { isAvailable, hasDb: !!db, appId, userId });
       return;
     }
     const docRef = doc(db, 'artifacts', appId, 'users', userId);
-    await setDoc(docRef, settings, { merge: true });
-    console.log("Settings saved successfully", { userId, settings, path: `artifacts/${appId}/users/${userId}` });
+    
+    // Fire and forget or timeout? 
+    // We use timeout to ensure we don't block callers forever if they await this
+    await withTimeout(
+        setDoc(docRef, settings, { merge: true }),
+        2000, // Short timeout for saves
+        "Save settings timed out"
+    );
+    
+    console.log("Settings saved successfully", { userId });
   } catch (error) {
     console.error("Error saving settings:", error);
-    throw error; // Re-throw so callers know it failed
+    // Don't re-throw, app continues with local storage
   }
 };
 
@@ -189,40 +250,33 @@ export const getTopLeaderboard = async (limitCount: number = 10, difficulty: Dif
   try {
     const { db, appId, isAvailable } = await getFirebaseServices();
     if (!isAvailable || !db || !appId) {
-      console.warn("Cannot fetch leaderboard: Firebase not available", { isAvailable, hasDb: !!db, appId });
       return [];
     }
     
     const usersRef = collection(db, 'artifacts', appId, 'users');
-    
-    // Determine Field to sort by. 
-    // IF difficulty is 'normal', use 'highScore' (legacy field) to ensure all existing users are included.
     let scoreField = `highScores.${difficulty}`;
     if (difficulty === 'normal') {
         scoreField = 'highScore';
     }
 
-    // Try to use indexed query first
+    // Query with timeout
     try {
-      const q = query(
-        usersRef,
-        orderBy(scoreField, 'desc'),
-        limit(limitCount * 2) 
-      );
+      const q = query(usersRef, orderBy(scoreField, 'desc'), limit(limitCount * 2));
       
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await withTimeout(
+          getDocs(q),
+          NETWORK_TIMEOUT_MS,
+          "Leaderboard fetch timed out"
+      );
       
       const userMap = new Map<string, LeaderboardEntry>();
       
       querySnapshot.forEach((docSnap) => {
         const userId = docSnap.id;
         const data = docSnap.data();
-        
         let scoreVal = 0;
         
         if (difficulty === 'normal') {
-            // For normal, explicitly take the max of legacy 'highScore' and specific 'highScores.normal'
-            // This handles cases where data might be partially migrated
             scoreVal = data.highScore || 0;
             const specific = data.highScores?.normal || 0;
             scoreVal = Math.max(scoreVal, specific);
@@ -243,51 +297,11 @@ export const getTopLeaderboard = async (limitCount: number = 10, difficulty: Dif
         }
       });
       
-      const entries = Array.from(userMap.values())
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limitCount);
-      
-      return entries;
+      return Array.from(userMap.values()).sort((a, b) => b.score - a.score).slice(0, limitCount);
+
     } catch (queryError: any) {
-      console.warn(`Indexed query for ${scoreField} failed, falling back to in-memory sort.`);
-      
-      const allUsersQuery = query(usersRef, limit(1000));
-      const allSnapshot = await getDocs(allUsersQuery);
-      
-      const userMap = new Map<string, LeaderboardEntry>();
-      
-      allSnapshot.forEach((docSnap) => {
-        const userId = docSnap.id;
-        const data = docSnap.data();
-        
-        let scoreVal = 0;
-
-        if (difficulty === 'normal') {
-            scoreVal = data.highScore || 0;
-            const specific = data.highScores?.normal || 0;
-            scoreVal = Math.max(scoreVal, specific);
-        } else {
-            scoreVal = data?.highScores?.[difficulty] || 0;
-        }
-
-        if (typeof scoreVal === 'number' && scoreVal > 0) {
-          const existingEntry = userMap.get(userId);
-          if (!existingEntry || scoreVal > existingEntry.score) {
-            userMap.set(userId, {
-              userId: userId,
-              displayName: data.displayName || 'Unknown Pilot',
-              score: scoreVal,
-              createdAt: null
-            });
-          }
-        }
-      });
-      
-      const entries = Array.from(userMap.values())
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limitCount);
-      
-      return entries;
+      console.warn(`Indexed query for ${scoreField} failed or timed out, skipping fallback to prevent further freeze.`);
+      return [];
     }
   } catch (error) {
     console.error("Error fetching leaderboard:", error);

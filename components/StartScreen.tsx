@@ -10,6 +10,9 @@ interface StartScreenProps {
   onShowStore: () => void;
   highScore: number;
   credits?: number;
+  difficulty?: string;
+  isHolidayMode?: boolean;
+  onToggleHolidayMode?: () => void;
 }
 
 export const StartScreen: React.FC<StartScreenProps> = ({ 
@@ -19,7 +22,10 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   onShowLeaderboard, 
   onShowStore,
   highScore,
-  credits = 0 
+  credits = 0,
+  difficulty = 'normal',
+  isHolidayMode = false,
+  onToggleHolidayMode
 }) => {
   const title = "Planet Orbit";
 
@@ -50,7 +56,9 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             </svg>
          </div>
          <div className="flex flex-col items-start">
-            <span className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">High Score</span>
+            <span className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">
+                High Score <span className="text-sky-500">• {difficulty.toUpperCase()}</span>
+            </span>
             <span className="text-white font-black text-lg leading-none tabular-nums tracking-wide">
                {highScore.toLocaleString()}
             </span>
@@ -70,6 +78,27 @@ export const StartScreen: React.FC<StartScreenProps> = ({
              <span className="text-white font-bold text-lg">{credits.toLocaleString()}</span>
          </div>
       </div>
+
+      {/* Holiday Mode Toggle */}
+      {onToggleHolidayMode && (
+          <div 
+            className="absolute bottom-6 left-6 z-30 flex items-center gap-3 bg-slate-900/40 px-3 py-2 rounded-xl backdrop-blur-md border border-slate-700/30"
+            style={{ 
+                marginLeft: 'env(safe-area-inset-left)',
+                marginBottom: 'env(safe-area-inset-bottom)'
+            }}
+          >
+              <div 
+                  className={`relative w-10 h-6 rounded-full cursor-pointer transition-colors duration-300 ${isHolidayMode ? 'bg-red-500' : 'bg-slate-700'}`}
+                  onClick={onToggleHolidayMode}
+              >
+                  <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${isHolidayMode ? 'translate-x-4' : 'translate-x-0'}`}></div>
+              </div>
+              <span className={`text-sm font-bold uppercase tracking-wider ${isHolidayMode ? 'text-white' : 'text-slate-400'}`}>
+                  {isHolidayMode ? '❄️ Holiday Mode' : 'Holiday Mode'}
+              </span>
+          </div>
+      )}
 
       {/* Title */}
       <h1 className="text-5xl sm:text-7xl font-black mb-4 tracking-tight select-none animate-float-in">

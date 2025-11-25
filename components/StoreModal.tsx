@@ -13,6 +13,7 @@ interface StoreModalProps {
 }
 
 const CATEGORIES: { id: StoreCategory; label: string }[] = [
+    { id: 'consumable', label: 'Power-ups' },
     { id: 'skin', label: 'Skins' },
     { id: 'planet', label: 'Planets' },
     { id: 'trail', label: 'Trails' },
@@ -21,10 +22,34 @@ const CATEGORIES: { id: StoreCategory; label: string }[] = [
 
 const ItemPreview: React.FC<{ item: StoreItem }> = ({ item }) => {
     switch (item.category) {
+        case 'consumable':
+            let content = null;
+            if (item.value === 'shield') {
+                content = (
+                    <div className="w-16 h-16 rounded-full border-4 border-blue-500 bg-blue-500/20 flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.5)]">
+                        <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                );
+            } else if (item.value === 'speedBoost') {
+                content = (
+                    <div className="w-16 h-16 rounded-full border-4 border-yellow-500 bg-yellow-500/20 flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.5)]">
+                        <svg className="w-8 h-8 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg>
+                    </div>
+                );
+            }
+            return (
+                <div className="w-full h-32 rounded-t-xl bg-slate-900 flex items-center justify-center relative overflow-hidden border-b border-slate-700/50">
+                     <div className="absolute inset-0 opacity-10" 
+                          style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }} 
+                     />
+                     {content}
+                </div>
+            );
         case 'planet':
             let planetContent = null;
             let containerStyle: React.CSSProperties = {};
-            const baseClasses = "w-20 h-20 rounded-full relative overflow-hidden shadow-2xl transition-transform duration-700 hover:rotate-12 hover:scale-110";
+            // Default circular shape
+            let baseClasses = "w-20 h-20 rounded-full relative overflow-hidden shadow-2xl transition-transform duration-700 hover:rotate-12 hover:scale-110";
             
             if (item.id === 'planet_sun') {
                 containerStyle = { background: 'radial-gradient(circle at 30% 30%, #fb923c, #ef4444, #7f1d1d)' };
@@ -34,34 +59,107 @@ const ItemPreview: React.FC<{ item: StoreItem }> = ({ item }) => {
                         <div className="absolute -inset-1 bg-orange-500/20 blur-xl animate-[pulse_2s_infinite]"></div>
                     </>
                 );
-            } else if (item.id === 'planet_ice_giant') {
-                containerStyle = { background: 'radial-gradient(circle at 30% 30%, #ecfeff, #a5f3fc, #0891b2)' };
+            } else if (item.id === 'planet_mars') {
+                // Mars (Textured Red)
+                containerStyle = { background: 'radial-gradient(circle at 40% 40%, #ef4444, #b91c1c, #7f1d1d)' };
                 planetContent = (
                     <>
-                        <div className="absolute top-1/4 -left-2 w-[120%] h-2 bg-white/30 rotate-12 blur-[1px]"></div>
-                        <div className="absolute top-1/2 -left-2 w-[120%] h-4 bg-white/20 rotate-12 blur-[2px]"></div>
-                        <div className="absolute top-2 right-4 w-4 h-4 bg-white/80 rounded-full blur-[4px]"></div>
-                        <div className="absolute inset-0 border border-white/20 rounded-full"></div>
+                        <div className="absolute top-3 left-2 w-8 h-5 bg-red-950/40 rounded-full blur-[1px] rotate-12"></div>
+                        <div className="absolute bottom-4 right-3 w-10 h-8 bg-red-950/40 rounded-full blur-[2px] -rotate-6"></div>
+                        <div className="absolute top-1/2 left-1/2 w-4 h-4 bg-red-900/30 rounded-full blur-[1px]"></div>
+                        <div className="absolute inset-0 border border-red-300/10 rounded-full"></div>
                     </>
                 );
-            } else if (item.id === 'planet_mars') {
-                 containerStyle = { background: 'radial-gradient(circle at 40% 40%, #fca5a5, #ef4444, #7f1d1d)' };
-                 planetContent = (
-                     <>
-                        <div className="absolute top-4 left-3 w-6 h-4 bg-red-900/20 rounded-full blur-[1px] rotate-12"></div>
-                        <div className="absolute bottom-5 right-4 w-8 h-8 bg-red-900/20 rounded-full blur-[2px]"></div>
-                        <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-red-950/30 rounded-full blur-[0.5px]"></div>
-                     </>
-                 );
-            } else if (item.id === 'planet_toxic') {
-                 containerStyle = { background: 'radial-gradient(circle at 50% 50%, #86efac, #22c55e, #14532d)' };
-                 planetContent = (
-                     <>
-                        <div className="absolute bottom-2 left-1/4 w-3 h-3 bg-lime-300/60 rounded-full animate-[bounce_3s_infinite]"></div>
-                        <div className="absolute bottom-4 right-1/3 w-2 h-2 bg-lime-300/40 rounded-full animate-[bounce_2.2s_infinite]"></div>
-                        <div className="absolute inset-0 bg-green-500/10 blur-sm animate-pulse"></div>
-                     </>
-                 );
+            } else if (item.id === 'planet_gas') {
+                // Gas Giant (Cloudy blobs)
+                baseClasses = "w-24 h-24 relative transition-transform duration-700 hover:rotate-6 hover:scale-110";
+                containerStyle = { background: 'transparent' };
+                planetContent = (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                        <div className="absolute w-16 h-16 bg-purple-500/60 rounded-full blur-xl animate-pulse"></div>
+                        <div className="absolute w-14 h-14 bg-fuchsia-600/50 rounded-full blur-lg translate-x-2 -translate-y-2"></div>
+                        <div className="absolute w-12 h-12 bg-indigo-500/50 rounded-full blur-lg -translate-x-2 translate-y-2"></div>
+                        <div className="absolute w-8 h-8 bg-purple-900/40 rounded-full blur-md"></div>
+                    </div>
+                );
+            } else if (item.id === 'planet_proto') {
+                // Protoplanet (Jagged)
+                baseClasses = "w-20 h-20 relative shadow-2xl transition-transform duration-700 hover:rotate-12 hover:scale-110";
+                containerStyle = { 
+                    backgroundColor: '#44403c', 
+                    clipPath: 'polygon(50% 0%, 80% 10%, 100% 35%, 100% 70%, 80% 90%, 50% 100%, 20% 90%, 0% 70%, 0% 35%, 20% 10%)'
+                };
+                planetContent = (
+                    <>
+                       <div className="absolute top-0 left-0 w-full h-full border-4 border-stone-600 opacity-50"></div>
+                       <div className="absolute top-1/4 left-1/4 w-1/2 h-1/2 bg-stone-900/30 blur-sm"></div>
+                    </>
+                );
+            } else if (item.id === 'planet_seven') {
+                // Sector 7 (Billiard Style)
+                containerStyle = { background: 'radial-gradient(circle at 30% 30%, #065f46, #022c22)' };
+                planetContent = (
+                    <>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center shadow-inner">
+                            <span className="text-black font-black text-xl font-sans pt-0.5">7</span>
+                        </div>
+                        <div className="absolute inset-0 border-4 border-slate-400/50 rounded-full"></div>
+                    </>
+                );
+            } else if (item.id === 'planet_ice_giant') {
+                // Ice Giant (Jagged Crystal)
+                baseClasses = "w-20 h-20 relative shadow-2xl transition-transform duration-700 hover:scale-110";
+                containerStyle = { 
+                    background: 'linear-gradient(135deg, #cffafe, #06b6d4)',
+                    clipPath: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)', // Star/Spike shape
+                };
+                planetContent = (
+                    <>
+                        <div className="absolute inset-0 bg-white/30 animate-pulse"></div>
+                        <div className="absolute top-0 left-0 w-full h-full border-2 border-white/50"></div>
+                    </>
+                );
+            } else if (item.id === 'planet_turkey') {
+                // Turkey Planet
+                baseClasses = "w-24 h-24 relative transition-transform duration-700 hover:scale-110";
+                containerStyle = { background: 'transparent' };
+                planetContent = (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                        {/* Tail */}
+                        <div className="absolute -top-4 w-20 h-12 bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500 rounded-t-full"></div>
+                        {/* Body */}
+                        <div className="absolute w-12 h-12 bg-amber-900 rounded-full shadow-lg"></div>
+                        {/* Head */}
+                        <div className="absolute -top-3 w-8 h-8 bg-amber-800 rounded-full border border-amber-900"></div>
+                        {/* Beak */}
+                        <div className="absolute -top-1 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[8px] border-t-yellow-400"></div>
+                        {/* Wattle */}
+                        <div className="absolute top-0 left-4 w-2 h-4 bg-red-600 rounded-full rotate-12"></div>
+                    </div>
+                );
+            } else if (item.id === 'planet_cat') {
+                // Cat Planet
+                baseClasses = "w-20 h-20 relative transition-transform duration-700 hover:scale-110";
+                containerStyle = { background: 'transparent' };
+                planetContent = (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                        {/* Ears */}
+                        <div className="absolute -top-2 -left-1 w-8 h-8 bg-gray-600 rotate-[-15deg] skew-x-12"></div>
+                        <div className="absolute -top-2 -right-1 w-8 h-8 bg-gray-600 rotate-[15deg] -skew-x-12"></div>
+                        {/* Head */}
+                        <div className="absolute w-16 h-14 bg-gray-500 rounded-[40%] shadow-lg"></div>
+                        {/* Eyes */}
+                        <div className="absolute top-4 left-3 w-3 h-2 bg-green-400 rounded-full border border-black/20"></div>
+                        <div className="absolute top-4 right-3 w-3 h-2 bg-green-400 rounded-full border border-black/20"></div>
+                        {/* Nose */}
+                        <div className="absolute top-7 w-2 h-1.5 bg-pink-400 rounded-full"></div>
+                        {/* Whiskers */}
+                        <div className="absolute top-7 -left-2 w-6 h-[1px] bg-gray-300 rotate-12"></div>
+                        <div className="absolute top-8 -left-2 w-6 h-[1px] bg-gray-300"></div>
+                        <div className="absolute top-7 -right-2 w-6 h-[1px] bg-gray-300 -rotate-12"></div>
+                        <div className="absolute top-8 -right-2 w-6 h-[1px] bg-gray-300"></div>
+                    </div>
+                );
             } else if (item.id === 'planet_void') {
                  containerStyle = { background: '#09090b', boxShadow: 'inset 0 0 20px #6b21a8' };
                  planetContent = (
@@ -227,6 +325,38 @@ const ItemPreview: React.FC<{ item: StoreItem }> = ({ item }) => {
                      boxShadow: '0 0 20px #eab308'
                  };
                  inner = <div className="absolute top-3 left-3 w-2 h-2 bg-white/80 rounded-full blur-[1px]"></div>;
+             } else if (item.value === 'basketball') {
+                 skinStyle = { backgroundColor: '#f97316' };
+                 inner = (
+                     <>
+                        <div className="absolute inset-0 border border-orange-950/40 rounded-full"></div>
+                        <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-orange-950/60 -translate-x-1/2"></div>
+                        <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-orange-950/60 -translate-y-1/2"></div>
+                        <div className="absolute top-0 bottom-0 left-[15%] right-[15%] border-x border-orange-950/60 rounded-[100%]"></div>
+                     </>
+                 );
+             } else if (item.value === 'beachball') {
+                 skinStyle = { 
+                     background: 'conic-gradient(#ef4444 0deg 60deg, #ffffff 60deg 120deg, #3b82f6 120deg 180deg, #eab308 180deg 240deg, #22c55e 240deg 300deg, #f97316 300deg 360deg)' 
+                 };
+                 inner = <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full"></div>;
+             } else if (item.value === 'tennis') {
+                 skinStyle = { backgroundColor: '#bef264' };
+                 inner = (
+                     <>
+                        <div className="absolute inset-2 border-2 border-white rounded-full opacity-80" style={{ clipPath: 'path("M 0,20 Q 20,0 40,20")' }}></div>
+                        <div className="absolute inset-0 border-2 border-white/50 rounded-full opacity-50" style={{ transform: 'rotate(45deg) scaleX(0.5)' }}></div>
+                     </>
+                 );
+             } else if (item.value === 'apple') {
+                 skinStyle = { background: 'radial-gradient(circle at 30% 30%, #fca5a5, #ef4444)' };
+                 inner = (
+                     <>
+                        <div className="absolute -top-3 left-1/2 w-[2px] h-3 bg-amber-900 -translate-x-1/2"></div>
+                        <div className="absolute -top-2 left-1/2 w-3 h-2 bg-green-600 rounded-full rounded-bl-none"></div>
+                        <div className="absolute top-2 left-3 w-2 h-2 bg-white/40 blur-[1px] rounded-full"></div>
+                     </>
+                 );
              } else {
                  // Default
                  skinStyle = { backgroundColor: '#e2e8f0' };
@@ -242,7 +372,7 @@ const ItemPreview: React.FC<{ item: StoreItem }> = ({ item }) => {
                      <div className="absolute inset-0 opacity-10" 
                           style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }} 
                      />
-                     <div className="w-16 h-16 rounded-full relative shadow-2xl transition-transform hover:scale-110 duration-500" style={skinStyle}>
+                     <div className="w-16 h-16 rounded-full relative shadow-2xl transition-transform hover:scale-110 duration-500 overflow-visible" style={skinStyle}>
                          {inner}
                      </div>
                 </div>
@@ -289,20 +419,29 @@ const ItemPreview: React.FC<{ item: StoreItem }> = ({ item }) => {
 }
 
 export const StoreModal: React.FC<StoreModalProps> = ({ settings, onPurchase, onEquip, onClose }) => {
-  const [activeCategory, setActiveCategory] = useState<StoreCategory>('skin');
+  const [activeCategory, setActiveCategory] = useState<StoreCategory>('consumable');
 
   const filteredItems = useMemo(() => 
     STORE_ITEMS.filter(item => item.category === activeCategory), 
   [activeCategory]);
 
   const isEquipped = (item: StoreItem) => {
+      if (item.category === 'consumable') {
+          return settings.equippedConsumable === item.id;
+      }
       return settings[item.settingKey] === item.value;
   };
 
   const isUnlocked = (item: StoreItem) => {
+      // Consumables are not "unlocked" in the same way, we just check count
+      if (item.category === 'consumable') return true; 
       // Default items (price 0) are always unlocked, or if ID is in unlockedItems
       return item.price === 0 || settings.unlockedItems.includes(item.id);
   };
+
+  const getInventoryCount = (itemId: string) => {
+      return settings.inventory?.[itemId] || 0;
+  }
 
   return (
     <Modal show={true} onClose={onClose}>
@@ -319,7 +458,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({ settings, onPurchase, on
 
         {/* Category Tabs - Fixed */}
         <div className="shrink-0 mb-6 px-1">
-            <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto p-2 scrollbar-hide">
                 {CATEGORIES.map(cat => (
                     <button
                         key={cat.id}
@@ -336,12 +475,14 @@ export const StoreModal: React.FC<StoreModalProps> = ({ settings, onPurchase, on
         </div>
 
         {/* Items Grid - Scrollable */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-2 pb-4 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredItems.map(item => {
                     const owned = isUnlocked(item);
                     const equipped = isEquipped(item);
                     const canAfford = settings.credits >= item.price;
+                    const inventoryCount = getInventoryCount(item.id);
+                    const isConsumable = item.category === 'consumable';
 
                     return (
                         <div 
@@ -359,8 +500,17 @@ export const StoreModal: React.FC<StoreModalProps> = ({ settings, onPurchase, on
                                 <div className="absolute top-3 right-3 z-20">
                                     <span className="bg-sky-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg uppercase tracking-wider flex items-center gap-1">
                                         <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                                        Active
+                                        Equipped
                                     </span>
+                                </div>
+                            )}
+
+                            {/* Inventory Badge for Consumables */}
+                            {isConsumable && (
+                                <div className="absolute top-3 left-3 z-20">
+                                     <span className="bg-slate-900/80 backdrop-blur-sm border border-slate-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                                         Owned: {inventoryCount}
+                                     </span>
                                 </div>
                             )}
 
@@ -374,8 +524,20 @@ export const StoreModal: React.FC<StoreModalProps> = ({ settings, onPurchase, on
                                 
                                 <p className="text-slate-400 text-sm flex-1 leading-relaxed">{item.description}</p>
                                 
-                                <div className="mt-2 pt-3">
-                                    {owned ? (
+                                <div className="mt-2 pt-3 flex gap-2">
+                                    {/* Action Button 1: Equip/Unequip (if owned) */}
+                                    {isConsumable && inventoryCount > 0 ? (
+                                        <Button 
+                                            onClick={() => onEquip(item)}
+                                            className={`flex-1 py-3 text-sm font-black uppercase tracking-widest transition-all
+                                            ${equipped 
+                                                ? 'bg-sky-900/30 border-2 border-sky-500/30 text-sky-400 shadow-none' 
+                                                : 'bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-900/20'}`}
+                                            variant={equipped ? 'secondary' : 'primary'}
+                                        >
+                                            {equipped ? 'Unequip' : 'Equip'}
+                                        </Button>
+                                    ) : !isConsumable && owned ? (
                                         <Button 
                                             onClick={() => onEquip(item)}
                                             disabled={equipped}
@@ -387,17 +549,29 @@ export const StoreModal: React.FC<StoreModalProps> = ({ settings, onPurchase, on
                                         >
                                             {equipped ? 'Equipped' : 'Equip'}
                                         </Button>
-                                    ) : (
+                                    ) : null}
+
+                                    {/* Action Button 2: Buy (Only for consumables or unowned permanent items) */}
+                                    {(!owned || isConsumable) && (
                                         <Button 
                                             onClick={() => onPurchase(item)}
                                             disabled={!canAfford}
-                                            className={`w-full py-3 text-sm flex items-center justify-center gap-2 font-black uppercase tracking-wide transition-all
+                                            className={`py-3 text-sm flex items-center justify-center gap-2 font-black uppercase tracking-wide transition-all ${isConsumable ? 'flex-1' : 'w-full'}
                                             ${!canAfford 
                                                 ? 'opacity-60 cursor-not-allowed bg-slate-700 text-slate-400 shadow-none border border-slate-600' 
                                                 : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg shadow-orange-500/30 transform hover:scale-[1.02]'}`}
                                         >
-                                            <span>Purchase</span>
-                                            <span className="bg-black/30 px-2 py-0.5 rounded text-amber-100 tabular-nums">{item.price.toLocaleString()} 🪙</span>
+                                            {isConsumable ? (
+                                                <div className="flex flex-col items-center leading-none">
+                                                    <span className="text-[10px] opacity-80">Buy</span>
+                                                    <span>{item.price} 🪙</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <span>Purchase</span>
+                                                    <span className="bg-black/30 px-2 py-0.5 rounded text-amber-100 tabular-nums">{item.price.toLocaleString()} 🪙</span>
+                                                </>
+                                            )}
                                         </Button>
                                     )}
                                 </div>

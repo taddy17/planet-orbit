@@ -7,10 +7,13 @@ import {
   loadSettings, 
   saveSettings as saveSettingsToFirebase,
   getTopLeaderboard,
+  loadLocalSettings,
+  saveLocalSettings
 } from './services/firebase';
 import { generatePlayerName } from './services/gemini';
-import { initAudio, startBackgroundMusic } from './services/sound';
-import type { GameState, PlayerSettings, LeaderboardEntry, StoreItem, Difficulty } from './types';
+import { initAudio, startBackgroundMusic, pauseAudio, resumeAudio } from './services/sound';
+import type { GameState, PlayerSettings, LeaderboardEntry, StoreItem, Difficulty, PowerUpType } from './types';
+import { DEFAULT_PLAYER_SETTINGS } from './constants';
 import { GameCanvas } from './components/GameCanvas';
 import { LoginScreen } from './components/LoginScreen';
 import { StartScreen } from './components/StartScreen';
@@ -23,6 +26,7 @@ import { HighScoreModal } from './components/HighScoreModal';
 import { LeaderboardModal } from './components/LeaderboardModal';
 import { LevelDisplay } from './components/LevelDisplay';
 import { TutorialOverlay } from './components/TutorialOverlay';
+import { PauseMenu } from './components/PauseMenu';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>('login');
@@ -31,21 +35,11 @@ const App: React.FC = () => {
   const [finalScore, setFinalScore] = useState(0);
   const [creditsEarned, setCreditsEarned] = useState(0);
   const [level, setLevel] = useState(1);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isHolidayMode, setIsHolidayMode] = useState(false);
+  const [startPowerUp, setStartPowerUp] = useState<PowerUpType | undefined>(undefined);
 
-  const [settings, setSettings] = useState<PlayerSettings>({
-    planetColor: '#0ea5e9',
-    moonColor: '#e5e7eb',
-    trailColor: '#38bdf8',
-    moonSkin: 'default',
-    background: 'deep_space',
-    difficulty: 'normal',
-    displayName: 'Guest Pilot',
-    highScore: 0,
-    highScores: { easy: 0, normal: 0, hard: 0 },
-    hasSeenTutorial: false,
-    credits: 0,
-    unlockedItems: []
-  });
+  const [settings, setSettings] = useState<PlayerSettings>(DEFAULT_PLAYER_SETTINGS);
 
   const [isCustomizationVisible, setCustomizationVisible] = useState(false);
   const [isStoreVisible, setStoreVisible] = useState(false);
@@ -57,6 +51,67 @@ const App: React.FC = () => {
   
   const [isPressing, setIsPressing] = useState(false);
 
+  // Helper to merge loaded settings with defaults and apply migrations
+  const processSettings = (loaded: Partial<PlayerSettings> | null): PlayerSettings => {
+      const merged = { ...DEFAULT_PLAYER_SETTINGS, ...loaded };
+
+      // Migration: Ensure highScores object exists
+      if (!merged.highScores) {
+          merged.highScores = {
+              easy: 0,
+              normal: merged.highScore || 0, // Map legacy high score to normal
+              hard: 0
+          };
+      }
+      
+      // Consistency check: Ensure normal score includes legacy high score
+      if ((merged.highScore || 0) > (merged.highScores.normal || 0)) {
+          merged.highScores.normal = merged.highScore || 0;
+      }
+      
+      // Data integrity checks
+      if (!merged.unlockedItems) merged.unlockedItems = [];
+      if (!merged.inventory) merged.inventory = {};
+      
+      return merged as PlayerSettings;
+  };
+
+  // Helper to save settings everywhere (Local + Cloud if available)
+  const saveAllSettings = useCallback(async (newSettings: PlayerSettings, firebaseUpdates?: Partial<PlayerSettings>) => {
+      setSettings(newSettings);
+      saveLocalSettings(newSettings); // Always persist locally
+      
+      if (user) {
+          try {
+              // If specific updates provided use those (more efficient), else use full object
+              await saveSettingsToFirebase(user.uid, firebaseUpdates || newSettings);
+          } catch (error) {
+              console.warn("Cloud save failed, but local save successful.", error);
+          }
+      }
+  }, [user]);
+
+  // Handle Visibility Change & Blur to Auto-Pause
+  useEffect(() => {
+    const handlePause = () => {
+        if (gameState === 'playing' && !isTutorialActive) {
+            setIsPaused(true);
+            setIsPressing(false); // Fix sticky input
+            pauseAudio(); // Stop sound from playing in background
+        }
+    };
+
+    window.addEventListener('blur', handlePause);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) handlePause();
+    });
+
+    return () => {
+        window.removeEventListener('blur', handlePause);
+        document.removeEventListener('visibilitychange', handlePause);
+    };
+  }, [gameState, isTutorialActive]);
+
   useEffect(() => {
     let authUnsubscribe: () => void = () => {};
 
@@ -65,6 +120,10 @@ const App: React.FC = () => {
       
       if (!isConnected) {
         console.warn("Firebase connection failed. Running in offline mode.");
+        // OFFLINE MODE: Load from local storage
+        const localSettings = loadLocalSettings();
+        const finalSettings = processSettings(localSettings);
+        setSettings(finalSettings);
         setGameState('start'); 
         return;
       }
@@ -73,57 +132,35 @@ const App: React.FC = () => {
         setUser(firebaseUser);
         if (firebaseUser) {
           console.log("User authenticated", { uid: firebaseUser.uid, isAnonymous: firebaseUser.isAnonymous });
+          
+          // 1. Try Loading Cloud Settings
           let userSettings = await loadSettings(firebaseUser.uid);
           
-          const defaultSettings: PlayerSettings = {
-            planetColor: '#0ea5e9',
-            moonColor: '#e5e7eb',
-            trailColor: '#38bdf8',
-            moonSkin: 'default',
-            background: 'deep_space',
-            difficulty: 'normal',
-            displayName: '', 
-            highScore: 0,
-            highScores: { easy: 0, normal: 0, hard: 0 },
-            hasSeenTutorial: false,
-            credits: 0,
-            unlockedItems: []
-          };
-
-          // Initialize or Merge Settings
+          // 2. If no Cloud settings, try Local Settings (first time online after playing offline?)
           if (!userSettings) {
-             console.log("No existing settings found, initializing new user");
-             userSettings = { ...defaultSettings };
-          } else {
-            console.log("Loaded user settings, merging with defaults", { highScore: userSettings.highScore });
-            // Merge loaded settings onto default settings to ensure all keys exist
-            userSettings = { ...defaultSettings, ...userSettings };
-            
-            // Migration: Ensure highScores object exists
-            if (!userSettings.highScores) {
-                userSettings.highScores = {
-                    easy: 0,
-                    normal: userSettings.highScore || 0, // Map legacy high score to normal
-                    hard: 0
-                };
-            }
-
-            if (!userSettings.unlockedItems) userSettings.unlockedItems = [];
-            if (!userSettings.background) userSettings.background = 'deep_space';
+             const local = loadLocalSettings();
+             if (local) {
+                 console.log("No cloud settings found, migrating local settings to cloud.");
+                 userSettings = local;
+                 // Sync immediately
+                 saveSettingsToFirebase(firebaseUser.uid, local);
+             }
           }
 
-          if (userSettings.displayName && userSettings.displayName.length > 25) {
-              console.log("Detecting malformed name, resetting...");
-              userSettings.displayName = '';
-          }
+          // 3. Process & Merge
+          const finalSettings = processSettings(userSettings);
 
-          if (!userSettings.displayName) {
-              const newName = await generatePlayerName();
-              userSettings.displayName = newName;
-              await saveSettingsToFirebase(firebaseUser.uid, { displayName: newName });
+          // 4. Check Name Gen
+          if (finalSettings.displayName && finalSettings.displayName.length > 25) {
+               finalSettings.displayName = '';
+          }
+          if (!finalSettings.displayName) {
+               const newName = await generatePlayerName();
+               finalSettings.displayName = newName;
+               saveSettingsToFirebase(firebaseUser.uid, { displayName: newName });
           }
           
-          setSettings(userSettings);
+          setSettings(finalSettings);
           setGameState('start');
 
         } else {
@@ -139,11 +176,36 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleStartGame = useCallback(() => {
+  const handleStartGame = useCallback(async () => {
     initAudio(); 
     startBackgroundMusic();
     setScore(0);
     setLevel(1);
+    setIsPaused(false);
+    setStartPowerUp(undefined);
+
+    // Consume PowerUp Logic
+    if (settings.equippedConsumable) {
+        const itemId = settings.equippedConsumable;
+        const count = settings.inventory[itemId] || 0;
+        
+        if (count > 0) {
+            // Apply effect
+            let powerUpType: PowerUpType | undefined;
+            if (itemId === 'consumable_shield') powerUpType = 'shield';
+            if (itemId === 'consumable_boost') powerUpType = 'speedBoost';
+            
+            if (powerUpType) {
+                setStartPowerUp(powerUpType);
+                // Decrement inventory
+                const newInventory = { ...settings.inventory, [itemId]: count - 1 };
+                // Keep equipped if count > 1, otherwise unequip? UX: Keep it equipped.
+                const newSettings = { ...settings, inventory: newInventory };
+                
+                await saveAllSettings(newSettings, { inventory: newInventory });
+            }
+        }
+    }
     
     if (!settings.hasSeenTutorial) {
         setIsTutorialActive(true);
@@ -152,20 +214,24 @@ const App: React.FC = () => {
     }
     
     setGameState('playing');
-  }, [settings.hasSeenTutorial]);
+  }, [settings, user, saveAllSettings]);
+
+  const handleResumeGame = () => {
+      setIsPaused(false);
+      resumeAudio();
+  };
 
   const handleTutorialComplete = useCallback(async () => {
       setIsTutorialActive(false);
       const newSettings = { ...settings, hasSeenTutorial: true };
-      setSettings(newSettings);
-      if (user) {
-          await saveSettingsToFirebase(user.uid, { hasSeenTutorial: true });
-      }
-  }, [settings, user]);
+      await saveAllSettings(newSettings, { hasSeenTutorial: true });
+  }, [settings, saveAllSettings]);
 
   const handleGameOver = useCallback(async (finalScoreValue: number) => {
     setFinalScore(finalScoreValue);
     setIsPressing(false); 
+    setIsPaused(false);
+    setStartPowerUp(undefined); // Reset active powerup for next game check
     
     const earned = Math.floor(finalScoreValue / 10);
     setCreditsEarned(earned);
@@ -187,8 +253,6 @@ const App: React.FC = () => {
     };
 
     // Only update the legacy global 'highScore' if we are playing on Normal mode.
-    // This ensures that the legacy field (used for the Normal leaderboard) isn't polluted by Easy mode scores.
-    // Existing scores are effectively Normal scores, so this maintains consistency.
     let newLegacyHighScore = settings.highScore;
     if (currentDiff === 'normal') {
         newLegacyHighScore = Math.max(settings.highScore, finalScoreValue);
@@ -198,26 +262,19 @@ const App: React.FC = () => {
         ...settings, 
         highScores: newHighScores,
         highScore: newLegacyHighScore,
-        credits: (settings.credits || 0) + earned
+        // Ensure credits is treated as a number to prevent string concatenation bugs
+        credits: (Number(settings.credits) || 0) + earned
     };
     
-    setSettings(newSettings);
-
-    if (user) {
-        try {
-          console.log("Saving game stats", { userId: user.uid, difficulty: currentDiff, newHighScore: newDifficultyHighScore });
-          await saveSettingsToFirebase(user.uid, { 
-              highScore: newSettings.highScore, 
-              highScores: newHighScores,
-              credits: newSettings.credits
-          });
-        } catch (error) {
-          console.error("Failed to save stats:", error);
-        }
-    }
+    console.log("Saving game stats", { difficulty: currentDiff, newHighScore: newDifficultyHighScore });
+    await saveAllSettings(newSettings, {
+        highScore: newSettings.highScore, 
+        highScores: newHighScores,
+        credits: newSettings.credits
+    });
 
     setGameState('gameOver');
-  }, [settings, user]);
+  }, [settings, saveAllSettings]);
   
   const handleRestart = useCallback(() => {
     handleStartGame();
@@ -225,16 +282,15 @@ const App: React.FC = () => {
 
   const handleExit = useCallback(() => {
     setGameState('start');
+    setIsPaused(false);
+    setStartPowerUp(undefined);
   }, []);
 
-  const handleSaveSettings = useCallback(async (newSettings: Partial<PlayerSettings>) => {
-    const settingsToSave = { ...settings, ...newSettings };
-    setSettings(settingsToSave);
-    if(user) {
-      await saveSettingsToFirebase(user.uid, settingsToSave);
-    }
+  const handleSaveSettings = useCallback(async (newSettingsData: Partial<PlayerSettings>) => {
+    const settingsToSave = { ...settings, ...newSettingsData };
+    await saveAllSettings(settingsToSave, newSettingsData);
     setCustomizationVisible(false);
-  }, [user, settings]);
+  }, [settings, saveAllSettings]);
 
   const fetchLeaderboard = useCallback(async (difficulty: Difficulty) => {
     setIsLoadingLeaderboard(true);
@@ -251,40 +307,52 @@ const App: React.FC = () => {
 
   const handleShowLeaderboard = useCallback(() => {
     setLeaderboardVisible(true);
-    fetchLeaderboard(settings.difficulty);
-  }, [fetchLeaderboard, settings.difficulty]);
+    // Explicitly default to 'normal' when opening leaderboard to match user request
+    fetchLeaderboard('normal');
+  }, [fetchLeaderboard]);
 
   const handlePurchaseItem = useCallback(async (item: StoreItem) => {
       if (settings.credits >= item.price) {
           const newCredits = settings.credits - item.price;
-          const newUnlocked = [...settings.unlockedItems, item.id];
           
-          const updates = {
-              credits: newCredits,
-              unlockedItems: newUnlocked
-          };
+          let updates: Partial<PlayerSettings> = { credits: newCredits };
 
-          const newSettings = { ...settings, ...updates };
-          setSettings(newSettings);
-          
-          if (user) {
-              await saveSettingsToFirebase(user.uid, updates);
+          if (item.category === 'consumable') {
+              const currentCount = settings.inventory[item.id] || 0;
+              const newInventory = { ...settings.inventory, [item.id]: currentCount + 1 };
+              updates.inventory = newInventory;
+          } else {
+              const newUnlocked = [...settings.unlockedItems, item.id];
+              updates.unlockedItems = newUnlocked;
           }
+          
+          const newSettings = { ...settings, ...updates };
+          await saveAllSettings(newSettings, updates);
       }
-  }, [settings, user]);
+  }, [settings, saveAllSettings]);
 
   const handleEquipItem = useCallback(async (item: StoreItem) => {
-      const updates = { [item.settingKey]: item.value };
-      const newSettings = { ...settings, ...updates };
-      setSettings(newSettings);
+      let updates: Partial<PlayerSettings> = {};
       
-      if (user) {
-          await saveSettingsToFirebase(user.uid, updates);
+      if (item.category === 'consumable') {
+          // Toggle logic for consumables
+          if (settings.equippedConsumable === item.id) {
+              updates.equippedConsumable = undefined; // Unequip
+          } else {
+              updates.equippedConsumable = item.id; // Equip
+          }
+      } else {
+          updates = { [item.settingKey]: item.value };
       }
-  }, [settings, user]);
+
+      const newSettings = { ...settings, ...updates };
+      await saveAllSettings(newSettings, updates);
+  }, [settings, saveAllSettings]);
 
   const handlePressStart = () => {
-    setIsPressing(true);
+    if (!isPaused && gameState === 'playing') {
+        setIsPressing(true);
+    }
   };
 
   const handlePressEnd = () => {
@@ -297,7 +365,13 @@ const App: React.FC = () => {
         return <LoginScreen />;
       case 'start':
         // Display high score for the CURRENTLY selected difficulty
-        const currentDifficultyScore = settings.highScores?.[settings.difficulty] || 0;
+        let currentDifficultyScore = settings.highScores?.[settings.difficulty] || 0;
+        
+        // Ensure visual consistency for Normal mode to match Leaderboard logic (legacy fallback)
+        if (settings.difficulty === 'normal') {
+            currentDifficultyScore = Math.max(currentDifficultyScore, settings.highScore || 0);
+        }
+
         return (
           <StartScreen
             onStart={handleStartGame}
@@ -306,7 +380,10 @@ const App: React.FC = () => {
             onShowLeaderboard={handleShowLeaderboard}
             onShowStore={() => setStoreVisible(true)}
             highScore={currentDifficultyScore}
+            difficulty={settings.difficulty}
             credits={settings.credits}
+            isHolidayMode={isHolidayMode}
+            onToggleHolidayMode={() => setIsHolidayMode(prev => !prev)}
           />
         );
       case 'gameOver':
@@ -322,6 +399,9 @@ const App: React.FC = () => {
       case 'playing':
         if (isTutorialActive) {
             return <TutorialOverlay isPressing={isPressing} onComplete={handleTutorialComplete} />;
+        }
+        if (isPaused) {
+            return <PauseMenu onResume={handleResumeGame} onExit={handleExit} />;
         }
         return null;
       default:
@@ -346,6 +426,9 @@ const App: React.FC = () => {
         setLevel={setLevel}
         isPressing={isPressing}
         isTutorialActive={isTutorialActive}
+        isPaused={isPaused}
+        isHolidayMode={isHolidayMode}
+        startPowerUp={startPowerUp}
       />
       <div 
         className="pointer-events-none absolute inset-0 z-10"
@@ -356,8 +439,9 @@ const App: React.FC = () => {
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
-        {gameState === 'playing' && !isTutorialActive && <ScoreDisplay score={score} />}
-        {gameState === 'playing' && !isTutorialActive && <LevelDisplay level={level} />}
+        {gameState === 'playing' && !isTutorialActive && !isPaused && <ScoreDisplay score={score} />}
+        {gameState === 'playing' && !isTutorialActive && !isPaused && <LevelDisplay level={level} />}
+        {/* Only show Player ID if we have a real user, otherwise could show Offline/Guest */}
         {user && !isTutorialActive && <PlayerIdDisplay userId={user.uid} displayName={settings.displayName} />}
       </div>
       
@@ -391,7 +475,7 @@ const App: React.FC = () => {
           currentUserId={user?.uid}
           onClose={() => setLeaderboardVisible(false)}
           onFetchDifficulty={fetchLeaderboard}
-          initialDifficulty={settings.difficulty}
+          initialDifficulty="normal"
         />
       )}
     </div>

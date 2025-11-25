@@ -1,5 +1,5 @@
 
-import type { Difficulty, StoreItem } from './types';
+import type { Difficulty, StoreItem, PlayerSettings } from './types';
 
 export const DIFFICULTY_SETTINGS: Record<Difficulty, {
     initialSpawnInterval: number;
@@ -27,6 +27,23 @@ export const DIFFICULTY_SETTINGS: Record<Difficulty, {
     }
 };
 
+export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
+    planetColor: '#0ea5e9',
+    moonColor: '#e5e7eb',
+    trailColor: '#38bdf8',
+    moonSkin: 'default',
+    background: 'deep_space',
+    difficulty: 'normal',
+    displayName: 'Guest Pilot',
+    highScore: 0,
+    highScores: { easy: 0, normal: 0, hard: 0 },
+    hasSeenTutorial: false,
+    credits: 0,
+    unlockedItems: [],
+    inventory: {},
+    equippedConsumable: undefined
+};
+
 export const LEVELS = [
     // Level 1: Start
     { threshold: 0, speedMultiplier: 1.0, spawnMultiplier: 1.0 },
@@ -51,6 +68,26 @@ export const LEVELS = [
 ];
 
 export const STORE_ITEMS: StoreItem[] = [
+    // --- CONSUMABLES (POWER-UPS) ---
+    {
+        id: 'consumable_shield',
+        category: 'consumable',
+        name: 'Start Shield',
+        description: 'Start your next run with an active shield.',
+        price: 250,
+        value: 'shield',
+        settingKey: 'equippedConsumable'
+    },
+    {
+        id: 'consumable_boost',
+        category: 'consumable',
+        name: 'Nitro Start',
+        description: 'Begin the game with a speed boost.',
+        price: 150,
+        value: 'speedBoost',
+        settingKey: 'equippedConsumable'
+    },
+
     // --- SKINS ---
     {
         id: 'skin_default',
@@ -80,12 +117,48 @@ export const STORE_ITEMS: StoreItem[] = [
         settingKey: 'moonSkin'
     },
     {
+        id: 'skin_tennis',
+        category: 'skin',
+        name: 'Pro Serve',
+        description: 'Bounces off the competition.',
+        price: 1500,
+        value: 'tennis',
+        settingKey: 'moonSkin'
+    },
+    {
+        id: 'skin_beachball',
+        category: 'skin',
+        name: 'Beach Vibes',
+        description: 'Summer fun in a vacuum.',
+        price: 2000,
+        value: 'beachball',
+        settingKey: 'moonSkin'
+    },
+    {
         id: 'skin_ice',
         category: 'skin',
         name: 'Cryo Sphere',
         description: 'Frozen solid. Chillingly cool.',
         price: 1500,
         value: 'ice',
+        settingKey: 'moonSkin'
+    },
+    {
+        id: 'skin_basketball',
+        category: 'skin',
+        name: 'Slam Dunk',
+        description: 'Nothing but net (and gravity).',
+        price: 2500,
+        value: 'basketball',
+        settingKey: 'moonSkin'
+    },
+    {
+        id: 'skin_apple',
+        category: 'skin',
+        name: 'Cosmic Fruit',
+        description: 'An apple a day keeps the asteroids away.',
+        price: 3000,
+        value: 'apple',
         settingKey: 'moonSkin'
     },
     {
@@ -127,39 +200,66 @@ export const STORE_ITEMS: StoreItem[] = [
         settingKey: 'planetColor'
     },
     {
-        id: 'planet_mars',
+        id: 'planet_gas',
         category: 'planet',
-        name: 'Red Giant',
-        description: 'Hot, dusty, and red.',
-        price: 300,
-        value: '#ef4444',
-        settingKey: 'planetColor'
-    },
-    {
-        id: 'planet_toxic',
-        category: 'planet',
-        name: 'Toxic Waste',
-        description: 'Radioactive green glow.',
-        price: 450,
-        value: '#22c55e',
-        settingKey: 'planetColor'
-    },
-    {
-        id: 'planet_void',
-        category: 'planet',
-        name: 'Void Heart',
-        description: 'Dark matter concentration.',
-        price: 800,
-        value: '#6b21a8',
+        name: 'Nebula Cloud',
+        description: 'An unstable, shifting cloud of gas. No solid surface.',
+        price: 3000,
+        value: 'gas_giant',
         settingKey: 'planetColor'
     },
     {
         id: 'planet_ice_giant',
         category: 'planet',
-        name: 'Ice Giant',
-        description: 'Sub-zero temperatures.',
+        name: 'Glacial Shard',
+        description: 'A jagged, animated crystal planet.',
         price: 2000,
-        value: '#cffafe',
+        value: 'ice_giant',
+        settingKey: 'planetColor'
+    },
+    {
+        id: 'planet_turkey',
+        category: 'planet',
+        name: 'Gobble World',
+        description: 'Festive fowl. Happy Thanksgiving!',
+        price: 4000,
+        value: 'turkey',
+        settingKey: 'planetColor'
+    },
+    {
+        id: 'planet_cat',
+        category: 'planet',
+        name: 'Meow Planet',
+        description: 'The cutest celestial body in the galaxy.',
+        price: 4500,
+        value: 'cat',
+        settingKey: 'planetColor'
+    },
+    {
+        id: 'planet_mars',
+        category: 'planet',
+        name: 'Red Planet',
+        description: 'Dusty, textured terrain with craters.',
+        price: 1500,
+        value: 'mars',
+        settingKey: 'planetColor'
+    },
+    {
+        id: 'planet_proto',
+        category: 'planet',
+        name: 'Protoplanet',
+        description: 'An unstable, jagged rock formation.',
+        price: 5000,
+        value: 'protoplanet',
+        settingKey: 'planetColor'
+    },
+    {
+        id: 'planet_seven',
+        category: 'planet',
+        name: 'Sector 7',
+        description: 'Industrial base marked with a giant 7.',
+        price: 7777,
+        value: 'sector_seven',
         settingKey: 'planetColor'
     },
     {
@@ -167,7 +267,7 @@ export const STORE_ITEMS: StoreItem[] = [
         category: 'planet',
         name: 'Solar Flare',
         description: 'Blindingly bright star.',
-        price: 5000,
+        price: 15000,
         value: '#fb923c',
         settingKey: 'planetColor'
     },
@@ -176,7 +276,7 @@ export const STORE_ITEMS: StoreItem[] = [
         category: 'planet',
         name: 'Cyber Neon',
         description: 'Synthetic vaporwave aesthetics.',
-        price: 10000,
+        price: 25000,
         value: '#f0abfc',
         settingKey: 'planetColor'
     },

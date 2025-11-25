@@ -3,7 +3,7 @@ export type GameState = 'login' | 'start' | 'playing' | 'gameOver';
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
-export type MoonSkin = 'default' | 'crater' | 'tech' | 'smooth' | 'ice' | 'camo' | 'golden';
+export type MoonSkin = 'default' | 'crater' | 'tech' | 'smooth' | 'ice' | 'camo' | 'golden' | 'basketball' | 'beachball' | 'tennis' | 'apple';
 
 export type BackgroundType = 'deep_space' | 'nebula_storm' | 'star_field' | 'void' | 'cyber_grid';
 
@@ -20,9 +20,12 @@ export interface PlayerSettings {
   hasSeenTutorial?: boolean;
   credits: number;
   unlockedItems: string[];
+  // New fields for consumables
+  inventory: Record<string, number>; // item.id -> quantity
+  equippedConsumable?: string; // item.id of the currently equipped powerup
 }
 
-export type StoreCategory = 'skin' | 'planet' | 'trail' | 'background';
+export type StoreCategory = 'skin' | 'planet' | 'trail' | 'background' | 'consumable';
 
 export interface StoreItem {
   id: string;

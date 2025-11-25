@@ -16,6 +16,18 @@ export const initAudio = () => {
     }
 };
 
+export const pauseAudio = () => {
+    if (audioContext && audioContext.state === 'running') {
+        audioContext.suspend();
+    }
+}
+
+export const resumeAudio = () => {
+    if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+}
+
 export const startBackgroundMusic = () => {
     if (!audioContext) initAudio();
     if (!audioContext || isMusicPlaying) return;

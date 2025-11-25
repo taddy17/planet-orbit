@@ -1,0 +1,17 @@
+runtime: nodejs20 # Use the runtime that matches your project (e.g., nodejs18, python311, etc.)
+
+handlers:
+# 1. This explicitly tells the server to serve app-ads.txt from the root
+- url: /app-ads.txt
+  static_files: app-ads.txt
+  upload: app-ads.txt
+  mime_type: text/plain
+
+# 2. This is a catch-all for your main application's index.html file
+- url: /
+  static_files: index.html
+  upload: index.html
+
+# 3. This handles all other files for the single-page application (SPA)
+- url: /.*
+  script: auto
